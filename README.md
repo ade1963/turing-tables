@@ -1,4 +1,4 @@
-# 🎲 Agent Club
+# 🎲 Turing Tables
 
 Play board games against an AI agent — through a **fully static web page**.
 
@@ -21,7 +21,7 @@ The whole game state is one JSON document; its key is the game UID the agent
 generates and puts into the link. Both sides poll it every few seconds while
 waiting; turn order is enforced by a `turn` field and an incrementing `seq`
 counter. Storage access lives behind a tiny adapter
-([js/store.js](js/store.js), [scripts/_lib.py](skill/agent-club-games/scripts/_lib.py))
+([js/store.js](js/store.js), [scripts/_lib.py](skill/turing-tables/scripts/_lib.py))
 that speaks the Firebase REST subset `GET/PUT <db>/games/<uid>.json` — any
 endpoint implementing those two verbs works as a backend
 (see [tools/dev_store.py](tools/dev_store.py) for a 90-line local stand-in).
@@ -52,37 +52,37 @@ endpoint implementing those two verbs works as a backend
    }
    ```
 4. Copy the database URL, e.g.
-   `https://my-agent-club-default-rtdb.europe-west1.firebasedatabase.app`.
+   `https://my-turing-tables-default-rtdb.europe-west1.firebasedatabase.app`.
 
 ### 2. Deploy the web app on GitHub Pages
 
 1. Paste the database URL into [js/config.js](js/config.js) (`dbUrl`).
-2. Create a GitHub repository (e.g. `agent-club`) and push this folder:
+2. Create a GitHub repository (e.g. `turing-tables`) and push this folder:
    ```bash
-   git remote add origin https://github.com/<you>/agent-club.git
+   git remote add origin https://github.com/<you>/turing-tables.git
    git push -u origin main
    ```
 3. On GitHub: **Settings → Pages → Source: Deploy from a branch**, branch
    `main`, folder `/ (root)`. After a minute the app is live at
-   `https://<you>.github.io/agent-club/`.
+   `https://<you>.github.io/turing-tables/`.
 
 ### 3. Hook up the Hermes agent
 
 1. Copy the skill into Hermes' skills directory:
    ```bash
-   cp -r skill/agent-club-games ~/.hermes/skills/games/
+   cp -r skill/turing-tables ~/.hermes/skills/games/
    ```
 2. Give it the two URLs — via the skill config (`app_base_url`, `db_url`)
    or environment variables:
    ```bash
-   export AGENT_CLUB_URL="https://<you>.github.io/agent-club"
-   export AGENT_CLUB_DB_URL="https://<project>-default-rtdb.<region>.firebasedatabase.app"
+   export TURING_TABLES_URL="https://<you>.github.io/turing-tables"
+   export TURING_TABLES_DB_URL="https://<project>-default-rtdb.<region>.firebasedatabase.app"
    ```
 3. Ask Hermes: *"let's play tic-tac-toe"*. It creates a game, sends you the
    link, and waits for your move.
 
 The scripts are plain python3 (stdlib only), so any agent with a shell tool
-can use them — the [SKILL.md](skill/agent-club-games/SKILL.md) doubles as the
+can use them — the [SKILL.md](skill/turing-tables/SKILL.md) doubles as the
 instructions.
 
 ## Playing
@@ -98,9 +98,9 @@ instructions.
 python3 tools/dev_store.py            # storage stand-in on :8001
 python3 -m http.server 8000           # the app on :8000
 # js/config.js → dbUrl: "http://localhost:8001"
-export AGENT_CLUB_DB_URL=http://localhost:8001
-export AGENT_CLUB_URL=http://localhost:8000
-python3 skill/agent-club-games/scripts/new_game.py
+export TURING_TABLES_DB_URL=http://localhost:8001
+export TURING_TABLES_URL=http://localhost:8000
+python3 skill/turing-tables/scripts/new_game.py
 ```
 
 ## Adding a new game (Connect 4 is next)
@@ -110,7 +110,7 @@ python3 skill/agent-club-games/scripts/new_game.py
    [js/games/tictactoe.js](js/games/tictactoe.js)) and register it in
    [js/games/registry.js](js/games/registry.js).
 2. Mirror the rules in
-   [skill/agent-club-games/scripts/_lib.py](skill/agent-club-games/scripts/_lib.py)
+   [skill/turing-tables/scripts/_lib.py](skill/turing-tables/scripts/_lib.py)
    (`GAMES` dict: `init / validate / apply / parse_move / board_text`).
 3. Add a strategy section to the SKILL.md.
 

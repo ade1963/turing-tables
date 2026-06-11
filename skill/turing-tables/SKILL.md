@@ -1,18 +1,18 @@
 ---
-name: agent-club-games
+name: turing-tables
 description: Play turn-based board games (tic-tac-toe) with a human on a shared web board. Creates a game link the human opens in their browser; you receive their moves and play back in near real time. Use when the user asks to play a game.
 version: 1.0.0
-author: Agent Club
+author: Turing Tables
 license: MIT
 metadata:
   hermes:
     tags: [games, fun, web, tic-tac-toe]
     config:
-      app_base_url: "https://YOUR-USERNAME.github.io/agent-club"
+      app_base_url: "https://YOUR-USERNAME.github.io/turing-tables"
       db_url: "https://YOUR-PROJECT-default-rtdb.REGION.firebasedatabase.app"
 ---
 
-# Agent Club Games
+# Turing Tables
 
 Play board games with a human through a static web app. The shared game
 state lives in one small JSON document (the "mailbox") in a Firebase
@@ -23,7 +23,7 @@ no API keys in requests.
 ## When to Use
 
 - The user asks to play a game with you (tic-tac-toe / noughts and crosses).
-- The user sends you an Agent Club link or UID and wants to continue a game.
+- The user sends you an Turing Tables link or UID and wants to continue a game.
 
 ## Quick Reference
 
@@ -31,8 +31,8 @@ All scripts are python3, stdlib only. One-time setup — export two values
 (or set them in the skill config and export from there):
 
 ```bash
-export AGENT_CLUB_URL="https://<user>.github.io/agent-club"      # deployed web app
-export AGENT_CLUB_DB_URL="https://<project>-default-rtdb.<region>.firebasedatabase.app"
+export TURING_TABLES_URL="https://<user>.github.io/turing-tables"      # deployed web app
+export TURING_TABLES_DB_URL="https://<project>-default-rtdb.<region>.firebasedatabase.app"
 ```
 
 ```bash
@@ -85,11 +85,11 @@ pick another cell.
   Re-run it; nothing is lost, all state is in the mailbox.
 - **Exit 4 (not found)**: the UID is wrong or the game was cleaned up.
   Start a new game with `new_game.py`.
-- **Exit 5 with "No database configured"**: set `AGENT_CLUB_DB_URL` (or pass
+- **Exit 5 with "No database configured"**: set `TURING_TABLES_DB_URL` (or pass
   `--db-url`) — ask the user for their Firebase Realtime Database URL.
 - **Placeholder link**: if the printed link contains `YOUR-USERNAME`, the app
-  URL is not configured — ask the user for their deployed Agent Club URL and
-  pass it via `--base-url` or set `AGENT_CLUB_URL`.
+  URL is not configured — ask the user for their deployed Turing Tables URL and
+  pass it via `--base-url` or set `TURING_TABLES_URL`.
 - The scripts import `_lib.py` from their own folder — invoke them by full
   path as shown; do not copy them elsewhere without `_lib.py`.
 

@@ -223,7 +223,7 @@ function renderError(err, retry) {
   const home = document.createElement("a");
   home.className = "btn ghost";
   home.href = "#/";
-  home.textContent = "About Agent Club";
+  home.textContent = "About Turing Tables";
   actions.appendChild(home);
 }
 
@@ -232,7 +232,7 @@ function renderLanding() {
     <div class="landing">
       <section class="hero">
         <h1>Play board games with your AI&nbsp;agent</h1>
-        <p>Agent Club is a tiny static web app. An AI agent (like
+        <p>Turing Tables is a tiny static web app. An AI agent (like
           <a href="https://github.com/NousResearch/hermes-agent" target="_blank" rel="noopener">Hermes</a>)
           creates a game, sends you a link, and you play right here — no accounts, no server.</p>
       </section>
@@ -250,7 +250,7 @@ function renderLanding() {
       <section class="card setup">
         <h2>Hook up your own agent</h2>
         <p>This repo ships a ready-made skill for the Hermes Agent. Install it and ask Hermes for a game:</p>
-        <pre><code>cp -r skill/agent-club-games ~/.hermes/skills/games/
+        <pre><code>cp -r skill/turing-tables ~/.hermes/skills/games/
 # then tell Hermes: "let's play tic-tac-toe"</code></pre>
         <p>Details in the <a href="https://github.com/" data-repo-link>README</a>.</p>
       </section>

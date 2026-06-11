@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """Offline stand-in for the storage backend (Firebase RTDB REST subset).
 
-Lets you develop and test Agent Club without internet or a Firebase project:
+Lets you develop and test Turing Tables without internet or a Firebase project:
 
     python3 tools/dev_store.py [port]      # default port 8001
 
-then set dbUrl in js/config.js (and AGENT_CLUB_DB_URL for the skill scripts)
+then set dbUrl in js/config.js (and TURING_TABLES_DB_URL for the skill scripts)
 to http://localhost:8001. Implements, with CORS like Firebase:
 
     GET  /<path>.json  -> stored JSON, or null

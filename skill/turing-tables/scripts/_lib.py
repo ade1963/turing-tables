@@ -1,4 +1,4 @@
-"""Shared helpers for the agent-club-games skill scripts.
+"""Shared helpers for the turing-tables skill scripts.
 
 Pure python3 stdlib (urllib + json), no external dependencies.
 Game rules here mirror the web app's js/games/*.js so both sides
@@ -13,7 +13,7 @@ import urllib.error
 import urllib.request
 import uuid
 
-PLACEHOLDER_BASE_URL = "https://YOUR-USERNAME.github.io/agent-club"
+PLACEHOLDER_BASE_URL = "https://YOUR-USERNAME.github.io/turing-tables"
 
 
 class StoreNotFound(Exception):
@@ -28,16 +28,16 @@ class StoreHttpError(Exception):
 #
 # Backend: any endpoint speaking the Firebase RTDB REST subset (the same one
 # js/store.js uses): GET/PUT <db>/games/<uid>.json. Configure via the
-# AGENT_CLUB_DB_URL environment variable or the --db-url flag.
+# TURING_TABLES_DB_URL environment variable or the --db-url flag.
 
 def db_url(cli_value=None):
-    url = cli_value or os.environ.get("AGENT_CLUB_DB_URL")
+    url = cli_value or os.environ.get("TURING_TABLES_DB_URL")
     if not url:
         die(
-            "No database configured. Set AGENT_CLUB_DB_URL (or pass --db-url)\n"
+            "No database configured. Set TURING_TABLES_DB_URL (or pass --db-url)\n"
             "to your Firebase Realtime Database URL, e.g.\n"
-            "  https://my-agent-club-default-rtdb.europe-west1.firebasedatabase.app\n"
-            "Setup instructions: README.md in the agent-club repo.",
+            "  https://my-turing-tables-default-rtdb.europe-west1.firebasedatabase.app\n"
+            "Setup instructions: README.md in the turing-tables repo.",
             5,
         )
     return url.rstrip("/")
@@ -84,7 +84,7 @@ def put_state(uid, state, db=None):
 
 
 def share_url(uid, cli_base=None):
-    base = cli_base or os.environ.get("AGENT_CLUB_URL") or PLACEHOLDER_BASE_URL
+    base = cli_base or os.environ.get("TURING_TABLES_URL") or PLACEHOLDER_BASE_URL
     return f"{base.rstrip('/')}/#/g/{uid}"
 
 

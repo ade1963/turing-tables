@@ -24,7 +24,7 @@ def main():
     parser.add_argument("move", help="game-specific move (tictactoe: cell 0-8)")
     parser.add_argument("--say", metavar="MSG", help="chat message shown to the human")
     parser.add_argument("--db-url", metavar="URL",
-                        help="storage database URL (or set AGENT_CLUB_DB_URL)")
+                        help="storage database URL (or set TURING_TABLES_DB_URL)")
     args = parser.parse_args()
 
     try:

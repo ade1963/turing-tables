@@ -25,7 +25,7 @@ def main():
     parser.add_argument("--watch-rematch", action="store_true",
                         help="keep waiting after game over (human may click Rematch)")
     parser.add_argument("--db-url", metavar="URL",
-                        help="storage database URL (or set AGENT_CLUB_DB_URL)")
+                        help="storage database URL (or set TURING_TABLES_DB_URL)")
     args = parser.parse_args()
 
     deadline = time.monotonic() + args.timeout
