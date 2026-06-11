@@ -68,18 +68,18 @@ endpoint implementing those two verbs works as a backend
 
 ### 3. Hook up the Hermes agent
 
-1. Copy the skill into Hermes' skills directory:
+1. Put your URLs into
+   [skill/turing-tables/scripts/config.json](skill/turing-tables/scripts/config.json)
+   (`app_url`, `db_url`, optional `log` file path). Environment variables
+   `TURING_TABLES_URL` / `TURING_TABLES_DB_URL` / `TURING_TABLES_LOG`
+   override it if set.
+2. Copy the skill into Hermes' skills directory:
    ```bash
    cp -r skill/turing-tables ~/.hermes/skills/games/
    ```
-2. Give it the two URLs — via the skill config (`app_base_url`, `db_url`)
-   or environment variables:
-   ```bash
-   export TURING_TABLES_URL="https://<you>.github.io/turing-tables"
-   export TURING_TABLES_DB_URL="https://<project>-default-rtdb.<region>.firebasedatabase.app"
-   ```
 3. Ask Hermes: *"let's play tic-tac-toe"*. It creates a game, sends you the
-   link, and waits for your move.
+   link, and waits for your move. One script call per turn: `play_move.py`
+   publishes Hermes' move and blocks until you answer.
 
 The scripts are plain python3 (stdlib only), so any agent with a shell tool
 can use them — the [SKILL.md](skill/turing-tables/SKILL.md) doubles as the
@@ -98,9 +98,8 @@ instructions.
 python3 tools/dev_store.py            # storage stand-in on :8001
 python3 -m http.server 8000           # the app on :8000
 # js/config.js → dbUrl: "http://localhost:8001"
-export TURING_TABLES_DB_URL=http://localhost:8001
-export TURING_TABLES_URL=http://localhost:8000
-python3 skill/turing-tables/scripts/new_game.py
+python3 skill/turing-tables/scripts/new_game.py \
+  --db-url http://localhost:8001 --base-url http://localhost:8000
 ```
 
 ## Adding a new game (Connect 4 is next)

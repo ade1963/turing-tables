@@ -17,18 +17,32 @@ import uuid
 
 PLACEHOLDER_BASE_URL = "https://YOUR-USERNAME.github.io/turing-tables"
 
-# Set TURING_TABLES_LOG=<file> to append a JSON line per HTTP request and
-# script action -- the first thing to check when the agent seems stuck.
-LOG_PATH = os.environ.get("TURING_TABLES_LOG")
+# Configuration sources, in priority order: CLI flag > environment variable >
+# scripts/config.json. Agent shells often don't inherit exported variables,
+# so config.json is the most reliable place (keys: app_url, db_url, log).
+_CONFIG = None
+
+
+def _config():
+    global _CONFIG
+    if _CONFIG is None:
+        path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "config.json")
+        try:
+            with open(path, encoding="utf-8") as f:
+                _CONFIG = json.load(f)
+        except (OSError, ValueError):
+            _CONFIG = {}
+    return _CONFIG
 
 
 def log(event, **fields):
-    if not LOG_PATH:
+    path = os.environ.get("TURING_TABLES_LOG") or _config().get("log")
+    if not path:
         return
     rec = {"t": datetime.datetime.now().isoformat(timespec="seconds"),
            "event": event, **fields}
     try:
-        with open(LOG_PATH, "a", encoding="utf-8") as f:
+        with open(path, "a", encoding="utf-8") as f:
             f.write(json.dumps(rec) + "\n")
     except OSError:
         pass
@@ -49,7 +63,8 @@ class StoreHttpError(Exception):
 # TURING_TABLES_DB_URL environment variable or the --db-url flag.
 
 def db_url(cli_value=None):
-    url = cli_value or os.environ.get("TURING_TABLES_DB_URL")
+    url = (cli_value or os.environ.get("TURING_TABLES_DB_URL")
+           or _config().get("db_url"))
     if not url:
         die(
             "No database configured. Set TURING_TABLES_DB_URL (or pass --db-url)\n"
@@ -110,7 +125,8 @@ def put_state(uid, state, db=None):
 
 
 def share_url(uid, cli_base=None):
-    base = cli_base or os.environ.get("TURING_TABLES_URL") or PLACEHOLDER_BASE_URL
+    base = (cli_base or os.environ.get("TURING_TABLES_URL")
+            or _config().get("app_url") or PLACEHOLDER_BASE_URL)
     return f"{base.rstrip('/')}/#/g/{uid}"
 
 
@@ -122,6 +138,51 @@ def die(msg, code=1):
     log("fatal", msg=msg, code=code)
     print(msg, file=sys.stderr)
     sys.exit(code)
+
+
+def wait_for_turn(uid, timeout=120, watch_rematch=False, db=None):
+    """Poll until it's the agent's turn (0) or the game is over (2) or
+    timeout (3). Returns (state, code); state is None on timeout before
+    the first successful read."""
+    print(f"Waiting for the human (timeout {timeout}s, heartbeat every 30s)...",
+          file=sys.stderr, flush=True)
+    log("wait_start", uid=uid, timeout=timeout, watch_rematch=watch_rematch)
+    deadline = time.monotonic() + timeout
+    started = time.monotonic()
+    last_beat = started
+    errors = 0
+    state = None
+    while True:
+        try:
+            state = get_state(uid, db=db)
+            errors = 0
+        except StoreNotFound as err:
+            die(str(err), 4)
+        except (StoreHttpError, OSError) as err:
+            errors += 1
+            if errors >= 5:
+                die(f"Storage unreachable after {errors} attempts: {err}", 5)
+            time.sleep(5)
+            continue
+
+        if state["status"] == "active" and state["turn"] == "agent":
+            log("wait_done", uid=uid, result="your_turn", seq=state["seq"])
+            return state, 0
+        if state["status"] != "active" and not watch_rematch:
+            log("wait_done", uid=uid, result="game_over", seq=state["seq"])
+            return state, 2
+
+        now = time.monotonic()
+        if now - last_beat >= 30:
+            print(f"... still waiting ({int(now - started)}s elapsed; "
+                  f"seq {state['seq']}, turn: {state['turn']}, status: {state['status']})",
+                  file=sys.stderr, flush=True)
+            last_beat = now
+        if now >= deadline:
+            log("wait_done", uid=uid, result="timeout",
+                seq=state["seq"] if state else None)
+            return state, 3
+        time.sleep(2 if now - started < 30 else 5)
 
 
 # ----------------------------------------------- tic-tac-toe (mirrors JS)
