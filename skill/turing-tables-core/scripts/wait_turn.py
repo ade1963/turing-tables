@@ -19,13 +19,16 @@ import _lib
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("uid", help="game UID")
-    parser.add_argument("--timeout", type=int, default=120, metavar="SECONDS",
-                        help="max seconds to wait (default: 120; exit 3 = re-run)")
+    parser.add_argument("--timeout", type=int, default=None, metavar="SECONDS",
+                        help="max seconds to wait (default: config wait_timeout, "
+                             "else 120; exit 3 = re-run)")
     parser.add_argument("--watch-rematch", action="store_true",
                         help="keep waiting after game over (human may click Rematch)")
     parser.add_argument("--db-url", metavar="URL",
                         help="storage database URL (overrides config.json)")
     args = parser.parse_args()
+    if args.timeout is None:
+        args.timeout = _lib.wait_timeout()
 
     state, code = _lib.wait_for_turn(args.uid, timeout=args.timeout,
                                      watch_rematch=args.watch_rematch,

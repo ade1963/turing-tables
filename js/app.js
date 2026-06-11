@@ -71,9 +71,16 @@ function renderGame() {
       <p class="status" data-status></p>
       <div class="board" data-board></div>
       <div class="chat" data-chat></div>
+      <div class="chat-send" data-chatsend>
+        <input type="text" maxlength="120"
+          placeholder="Message ${state.players.agent.name ?? "the agent"}…">
+        <button type="button" class="btn small">Send</button>
+      </div>
       <div class="actions" data-actions></div>
       <p class="hint">You are <strong>${state.players.human.mark}</strong> ·
-        ${state.players.agent.name ?? "Agent"} is <strong>${state.players.agent.mark}</strong></p>
+        ${state.players.agent.name ?? "Agent"} is <strong>${state.players.agent.mark}</strong>
+        · score you <strong>${state.score?.human ?? 0} : ${state.score?.agent ?? 0}</strong>
+        ${state.players.agent.name ?? "Agent"} (draws ${state.score?.draws ?? 0})</p>
     </div>`;
 
   const humanTurn = state.status === "active" && state.turn === "human";
@@ -83,7 +90,32 @@ function renderGame() {
   });
   renderStatus();
   renderChat();
+  wireChatInput(humanTurn);
   renderActions();
+}
+
+function wireChatInput(canChat) {
+  const wrap = view.querySelector("[data-chatsend]");
+  if (!wrap) return;
+  const input = wrap.querySelector("input");
+  const btn = wrap.querySelector("button");
+  input.disabled = btn.disabled = !canChat;
+  wrap.classList.toggle("muted", !canChat);
+  if (!canChat) return;
+  const send = async () => {
+    const msg = input.value.trim();
+    if (!msg) return;
+    const { state } = session;
+    const next = structuredClone(state);
+    next.chat = (next.chat ?? []).slice(-7); // keep at most 8 with the new one
+    next.chat.push({ by: "human", msg });
+    next.seq = state.seq + 1;
+    await commit(next, "Couldn't send the message — check your connection.");
+  };
+  btn.addEventListener("click", send);
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") send();
+  });
 }
 
 function renderStatus(extra) {
@@ -153,6 +185,7 @@ async function rematch() {
   next.seq = state.seq + 1;
   next.round = (state.round ?? 1) + 1;
   next.players.agent.name = state.players.agent.name;
+  next.score = structuredClone(state.score ?? next.score);
   await commit(next, "Couldn't start the rematch — check your connection and try again.");
 }
 
@@ -250,7 +283,7 @@ function renderLanding() {
       <section class="card setup">
         <h2>Hook up your own agent</h2>
         <p>This repo ships a ready-made skill for the Hermes Agent. Install it and ask Hermes for a game:</p>
-        <pre><code>cp -r skill/turing-tables ~/.hermes/skills/games/
+        <pre><code>cp -r skill/turing-tables-* ~/.hermes/skills/games/
 # then tell Hermes: "let's play tic-tac-toe"</code></pre>
         <p>Details in the <a href="https://github.com/ade1963/turing-tables" data-repo-link>README</a>.</p>
       </section>

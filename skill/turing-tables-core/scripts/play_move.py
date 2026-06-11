@@ -29,11 +29,14 @@ def main():
     parser.add_argument("--say", metavar="MSG", help="chat message shown to the human")
     parser.add_argument("--no-wait", action="store_true",
                         help="return right after publishing the move")
-    parser.add_argument("--timeout", type=int, default=120, metavar="SECONDS",
-                        help="max seconds to wait for the human (default: 120)")
+    parser.add_argument("--timeout", type=int, default=None, metavar="SECONDS",
+                        help="max seconds to wait for the human "
+                             "(default: config wait_timeout, else 120)")
     parser.add_argument("--db-url", metavar="URL",
                         help="storage database URL (overrides config.json)")
     args = parser.parse_args()
+    if args.timeout is None:
+        args.timeout = _lib.wait_timeout()
 
     try:
         state = _lib.get_state(args.uid, db=args.db_url)

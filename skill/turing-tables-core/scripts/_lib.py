@@ -35,6 +35,17 @@ def _config():
     return _CONFIG
 
 
+def wait_timeout():
+    """Default seconds a wait blocks before returning to the agent (exit 3).
+    Each return costs a full-context LLM call, so set this as high as the
+    agent's tool runner allows."""
+    val = os.environ.get("TURING_TABLES_WAIT_TIMEOUT") or _config().get("wait_timeout")
+    try:
+        return int(val)
+    except (TypeError, ValueError):
+        return 120
+
+
 def log(event, **fields):
     path = os.environ.get("TURING_TABLES_LOG") or _config().get("log")
     if not path:
@@ -194,16 +205,38 @@ TTT_LINES = [
 ]
 
 
-def ttt_normalize(state):
+def _normalize_common(state, board_size):
     # Storage backends (Firebase RTDB) strip empty arrays and null values
     # from stored JSON -- restore the full schema after every read.
     state.setdefault("moves", [])
     state.setdefault("chat", [])
     state.setdefault("winner", None)
     state.setdefault("turn", None)
+    score = state.get("score") or {}
+    state["score"] = {k: score.get(k, 0) for k in ("agent", "human", "draws")}
     board = state.get("board") or []
-    state["board"] = [board[i] if i < len(board) and board[i] else "" for i in range(9)]
+    state["board"] = [board[i] if i < len(board) and board[i] else ""
+                      for i in range(board_size)]
     return state
+
+
+def _finish_move(state, nxt, by):
+    """Shared post-move bookkeeping: result, turn flip, score, seq."""
+    game = GAMES[nxt["game"]]
+    res = game["result"](nxt)
+    nxt["status"] = res["status"]
+    nxt["winner"] = res["winner"]
+    nxt["turn"] = ("agent" if by == "human" else "human") if res["status"] == "active" else None
+    if res["status"] == "win":
+        nxt["score"][res["winner"]] = nxt["score"].get(res["winner"], 0) + 1
+    elif res["status"] == "draw":
+        nxt["score"]["draws"] = nxt["score"].get("draws", 0) + 1
+    nxt["seq"] = state["seq"] + 1
+    return nxt
+
+
+def ttt_normalize(state):
+    return _normalize_common(state, 9)
 
 
 def ttt_init(first="human"):
@@ -221,6 +254,7 @@ def ttt_init(first="human"):
         "turn": first,
         "status": "active",
         "winner": None,
+        "score": {"agent": 0, "human": 0, "draws": 0},
         "board": [""] * 9,
         "moves": [],
         "chat": [],
@@ -254,12 +288,7 @@ def ttt_apply(state, cell, by):
     nxt = copy.deepcopy(state)
     nxt["board"][cell] = nxt["players"][by]["mark"]
     nxt["moves"].append({"by": by, "cell": cell})
-    res = ttt_result(nxt)
-    nxt["status"] = res["status"]
-    nxt["winner"] = res["winner"]
-    nxt["turn"] = ("agent" if by == "human" else "human") if res["status"] == "active" else None
-    nxt["seq"] = state["seq"] + 1
-    return nxt
+    return _finish_move(state, nxt, by)
 
 
 def ttt_parse_move(raw):
@@ -279,15 +308,114 @@ def ttt_board_text(state):
     return out
 
 
+# -------------------------------------------------- connect 4 (mirrors JS)
+#
+# Board: flat 42-array, 7 columns x 6 rows, index = row*7 + col, row 0 = top.
+# A move is a column 0-6; the disc falls to the lowest empty cell.
+
+C4_COLS, C4_ROWS = 7, 6
+
+
+def c4_normalize(state):
+    return _normalize_common(state, C4_COLS * C4_ROWS)
+
+
+def c4_init(first="human"):
+    state = ttt_init(first)
+    state["game"] = "connect4"
+    state["board"] = [""] * (C4_COLS * C4_ROWS)
+    return state
+
+
+def c4_drop_row(board, col):
+    """Lowest empty row in a column, or None if the column is full."""
+    for row in range(C4_ROWS - 1, -1, -1):
+        if board[row * C4_COLS + col] == "":
+            return row
+    return None
+
+
+def c4_validate(state, col, by):
+    if state.get("status") != "active":
+        return "game is over"
+    if state.get("turn") != by:
+        return "not your turn"
+    if not isinstance(col, int) or not 0 <= col < C4_COLS:
+        return "column must be an integer 0-6"
+    if c4_drop_row(state["board"], col) is None:
+        return f"column {col} is full"
+    return None
+
+
+def c4_result(state):
+    board = state["board"]
+    for row in range(C4_ROWS):
+        for col in range(C4_COLS):
+            mark = board[row * C4_COLS + col]
+            if mark == "":
+                continue
+            for dr, dc in ((0, 1), (1, 0), (1, 1), (1, -1)):
+                line = [(row + i * dr, col + i * dc) for i in range(4)]
+                if all(0 <= r < C4_ROWS and 0 <= c < C4_COLS
+                       and board[r * C4_COLS + c] == mark for r, c in line):
+                    winner = ("agent" if state["players"]["agent"]["mark"] == mark
+                              else "human")
+                    return {"status": "win", "winner": winner,
+                            "line": [r * C4_COLS + c for r, c in line]}
+    if all(v != "" for v in board):
+        return {"status": "draw", "winner": None}
+    return {"status": "active", "winner": None}
+
+
+def c4_apply(state, col, by):
+    nxt = copy.deepcopy(state)
+    row = c4_drop_row(nxt["board"], col)
+    nxt["board"][row * C4_COLS + col] = nxt["players"][by]["mark"]
+    nxt["moves"].append({"by": by, "col": col, "row": row})
+    return _finish_move(state, nxt, by)
+
+
+def c4_parse_move(raw):
+    try:
+        return int(raw)
+    except ValueError:
+        raise ValueError(f"move must be a column number 0-6, got {raw!r}")
+
+
+def c4_board_text(state):
+    board = state["board"]
+    rows = []
+    for row in range(C4_ROWS):
+        cells = [board[row * C4_COLS + c] or "." for c in range(C4_COLS)]
+        rows.append(" " + " ".join(cells))
+    out = "\n".join(rows) + "\n " + " ".join(str(c) for c in range(C4_COLS))
+    if state["status"] == "active":
+        open_cols = [str(c) for c in range(C4_COLS)
+                     if c4_drop_row(board, c) is not None]
+        out += "\n\nopen columns: " + ", ".join(open_cols)
+    return out
+
+
 GAMES = {
     "tictactoe": {
         "init": ttt_init,
         "normalize": ttt_normalize,
         "validate": ttt_validate,
         "apply": ttt_apply,
+        "result": ttt_result,
         "parse_move": ttt_parse_move,
         "board_text": ttt_board_text,
         "move_help": "CELL is a board index 0-8 (left-to-right, top-to-bottom)",
+    },
+    "connect4": {
+        "init": c4_init,
+        "normalize": c4_normalize,
+        "validate": c4_validate,
+        "apply": c4_apply,
+        "result": c4_result,
+        "parse_move": c4_parse_move,
+        "board_text": c4_board_text,
+        "move_help": "MOVE is a column 0-6; the disc falls to the lowest free cell",
     },
 }
 
@@ -296,10 +424,13 @@ GAMES = {
 
 def summary(state):
     who = {"agent": "you (agent)", "human": "the human", None: "nobody"}
+    score = state.get("score") or {}
     line = (
         f"game: {state['game']} | round {state.get('round', 1)} | seq {state['seq']}\n"
         f"marks: you={state['players']['agent']['mark']} "
-        f"human={state['players']['human']['mark']}\n"
+        f"human={state['players']['human']['mark']} | "
+        f"score you {score.get('agent', 0)} : {score.get('human', 0)} human"
+        f" (draws {score.get('draws', 0)})\n"
     )
     if state["status"] == "active":
         line += f"turn: {who[state['turn']]}"
@@ -315,3 +446,10 @@ def print_state(state):
     print(GAMES[state["game"]]["board_text"](state))
     print()
     print(summary(state))
+    chat = state.get("chat") or []
+    if chat:
+        print("\nchat:")
+        for m in chat[-3:]:
+            who = state["players"]["agent"].get("name", "agent") \
+                if m.get("by") == "agent" else "human"
+            print(f"  {who}: {m.get('msg', '')}")

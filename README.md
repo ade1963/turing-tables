@@ -21,7 +21,7 @@ The whole game state is one JSON document; its key is the game UID the agent
 generates and puts into the link. Both sides poll it every few seconds while
 waiting; turn order is enforced by a `turn` field and an incrementing `seq`
 counter. Storage access lives behind a tiny adapter
-([js/store.js](js/store.js), [scripts/_lib.py](skill/turing-tables/scripts/_lib.py))
+([js/store.js](js/store.js), [scripts/_lib.py](skill/turing-tables-core/scripts/_lib.py))
 that speaks the Firebase REST subset `GET/PUT <db>/games/<uid>.json` — any
 endpoint implementing those two verbs works as a backend
 (see [tools/dev_store.py](tools/dev_store.py) for a 90-line local stand-in).
@@ -68,29 +68,47 @@ endpoint implementing those two verbs works as a backend
 
 ### 3. Hook up the Hermes agent
 
+There is one thin skill per game plus a shared core (scripts + config):
+
+```
+skill/turing-tables-core/        # shared scripts + config.json (not a skill itself)
+skill/turing-tables-tictactoe/   # SKILL.md for tic-tac-toe
+skill/turing-tables-connect4/    # SKILL.md for Connect 4
+```
+
 1. Put your URLs into
-   [skill/turing-tables/scripts/config.json](skill/turing-tables/scripts/config.json)
-   (`app_url`, `db_url`, optional `log` file path). Environment variables
-   `TURING_TABLES_URL` / `TURING_TABLES_DB_URL` / `TURING_TABLES_LOG`
-   override it if set.
-2. Copy the skill into Hermes' skills directory:
+   [skill/turing-tables-core/scripts/config.json](skill/turing-tables-core/scripts/config.json)
+   (`app_url`, `db_url`, optional `log` path, `wait_timeout` seconds).
+   Environment variables `TURING_TABLES_URL` / `TURING_TABLES_DB_URL` /
+   `TURING_TABLES_LOG` / `TURING_TABLES_WAIT_TIMEOUT` override it if set.
+2. Copy **all** skill folders into Hermes' skills directory (the per-game
+   skills reference the core by relative path):
    ```bash
-   cp -r skill/turing-tables ~/.hermes/skills/games/
+   cp -r skill/turing-tables-* ~/.hermes/skills/games/
    ```
-3. Ask Hermes: *"let's play tic-tac-toe"*. It creates a game, sends you the
-   link, and waits for your move. One script call per turn: `play_move.py`
-   publishes Hermes' move and blocks until you answer.
+3. Ask Hermes: *"let's play tic-tac-toe"* (or *connect 4*). It creates a
+   game, sends you the link, and waits. One script call per turn:
+   `play_move.py` publishes Hermes' move and blocks until you answer.
+
+**Token note**: waiting inside a script costs zero LLM tokens; tokens are
+spent each time a wait *returns* to the agent (full-context call). Set
+`wait_timeout` as high as your agent's tool runner allows (default 480s).
 
 The scripts are plain python3 (stdlib only), so any agent with a shell tool
-can use them — the [SKILL.md](skill/turing-tables/SKILL.md) doubles as the
-instructions.
+can use them — the per-game SKILL.md files (e.g.
+[turing-tables-connect4](skill/turing-tables-connect4/SKILL.md)) double as
+the instructions.
 
 ## Playing
 
 - Open the link the agent gives you — the board renders immediately.
-- When it's your turn the cells light up; click one.
+- When it's your turn the cells light up; click one (Connect 4: click any
+  cell in a column to drop there).
 - "Hermes is thinking…" means the agent has been notified and is choosing.
-- After the game ends, hit **Rematch ↺** — first move alternates each round.
+- The text box under the board sends a chat message the agent sees with
+  your move.
+- After the game ends, hit **Rematch ↺** — first move alternates and the
+  score carries over across rounds.
 
 ## Local development (no Firebase needed)
 
@@ -98,20 +116,22 @@ instructions.
 python3 tools/dev_store.py            # storage stand-in on :8001
 python3 -m http.server 8000           # the app on :8000
 # js/config.js → dbUrl: "http://localhost:8001"
-python3 skill/turing-tables/scripts/new_game.py \
+python3 skill/turing-tables-core/scripts/new_game.py \
   --db-url http://localhost:8001 --base-url http://localhost:8000
 ```
 
-## Adding a new game (Connect 4 is next)
+## Adding a new game
 
 1. Create `js/games/<id>.js` implementing the engine interface
-   (`init / validate / apply / result / render` — see
-   [js/games/tictactoe.js](js/games/tictactoe.js)) and register it in
+   (`normalize / init / validate / apply / result / render` — see
+   [js/games/connect4.js](js/games/connect4.js); reuse
+   [js/games/common.js](js/games/common.js)) and register it in
    [js/games/registry.js](js/games/registry.js).
 2. Mirror the rules in
-   [skill/turing-tables/scripts/_lib.py](skill/turing-tables/scripts/_lib.py)
-   (`GAMES` dict: `init / validate / apply / parse_move / board_text`).
-3. Add a strategy section to the SKILL.md.
+   [skill/turing-tables-core/scripts/_lib.py](skill/turing-tables-core/scripts/_lib.py)
+   (`GAMES` dict entry).
+3. Add a thin `skill/turing-tables-<id>/SKILL.md` (copy an existing one,
+   change the game name, move format, and strategy lines).
 
 Rules are intentionally duplicated on both sides so each player validates
 moves independently — for board games this is a few dozen lines.

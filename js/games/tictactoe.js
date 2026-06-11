@@ -8,6 +8,8 @@
 // Moves are { cell: 0..8 }, board indices:  0 1 2 / 3 4 5 / 6 7 8.
 // X always moves first; whoever moves first gets X.
 
+import { normalizeCommon, baseInit, finishMove } from "./common.js";
+
 const LINES = [
   [0, 1, 2], [3, 4, 5], [6, 7, 8], // rows
   [0, 3, 6], [1, 4, 7], [2, 5, 8], // columns
@@ -18,39 +20,12 @@ export const tictactoe = {
   id: "tictactoe",
   name: "Tic-Tac-Toe",
 
-  // Storage backends (Firebase RTDB) strip empty arrays and null values from
-  // stored JSON — restore the full schema after every read.
   normalize(state) {
-    const board = Array.from({ length: 9 }, (_, i) => state.board?.[i] || "");
-    return {
-      winner: null,
-      turn: null,
-      ...state,
-      board,
-      moves: state.moves ?? [],
-      chat: state.chat ?? [],
-    };
+    return normalizeCommon(state, 9);
   },
 
-  init({ first = "human" } = {}) {
-    const agentMark = first === "agent" ? "X" : "O";
-    return {
-      v: 1,
-      game: "tictactoe",
-      seq: 1,
-      round: 1,
-      first,
-      players: {
-        agent: { mark: agentMark, name: "Hermes" },
-        human: { mark: agentMark === "X" ? "O" : "X" },
-      },
-      turn: first,
-      status: "active", // active | win | draw
-      winner: null,     // null | "human" | "agent"
-      board: ["", "", "", "", "", "", "", "", ""],
-      moves: [],
-      chat: [],
-    };
+  init(opts) {
+    return baseInit("tictactoe", opts, 9);
   },
 
   validate(state, move, by) {
@@ -66,12 +41,7 @@ export const tictactoe = {
     const next = structuredClone(state);
     next.board[move.cell] = next.players[by].mark;
     next.moves.push({ by, cell: move.cell });
-    const res = tictactoe.result(next);
-    next.status = res.status;
-    next.winner = res.winner;
-    next.turn = res.status === "active" ? (by === "human" ? "agent" : "human") : null;
-    next.seq = state.seq + 1;
-    return next;
+    return finishMove(tictactoe, state, next, by);
   },
 
   result(state) {
