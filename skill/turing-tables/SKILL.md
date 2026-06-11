@@ -51,12 +51,14 @@ python3 ${HERMES_SKILL_DIR}/scripts/play_move.py <UID> 4 --say "Center is mine."
 1. **Create the game**: run `new_game.py tictactoe` (add `--first agent` if the
    user says you should start; whoever starts plays X). Send the printed link
    to the user and tell them their mark.
-2. **Wait for your turn**: run `wait_turn.py <UID>`. It blocks while the human
-   thinks and prints the board plus the empty cells when it is your turn.
+2. **Wait for your turn**: run `wait_turn.py <UID>`. It blocks up to 120s
+   (override with `--timeout N`), printing a heartbeat to stderr every 30s,
+   and prints the board plus the empty cells when it is your turn.
    - exit 0 → go to step 3.
    - exit 2 → game over: report the result to the user (step 4).
-   - exit 3 → the human is idle; tell the user you are still waiting and
-     re-run, or ask if they want to continue.
+   - exit 3 → timeout, the human is still thinking; **just re-run the same
+     command** — repeat until exit 0 or 2. If your tool runner kills long
+     commands, use a shorter `--timeout 60` and re-run more often.
 3. **Choose and play your move**: look at the printed board, reason about the
    best cell (see Strategy), then run `play_move.py <UID> <cell>`. Use `--say`
    to talk to the human — they see it next to the board. Go back to step 2.
@@ -99,3 +101,10 @@ Every script prints the resulting board and a summary line
 (`turn: …` / `status: …`) after each action — read it to confirm your move
 landed before telling the user. To inspect raw state at any time:
 `python3 -c "import sys; sys.path.insert(0,'${HERMES_SKILL_DIR}/scripts'); import _lib, json; print(json.dumps(_lib.get_state('UID'), indent=2))"`.
+
+## Troubleshooting / logging
+
+Set `TURING_TABLES_LOG=/tmp/turing-tables.log` before running the scripts to
+record every HTTP request and script action as JSON lines (timestamps, URLs,
+statuses, wait results). When a game seems stuck, `tail` that file: it shows
+whether the scripts are polling, erroring, or were never run at all.

@@ -6,14 +6,32 @@ validate moves independently.
 """
 
 import copy
+import datetime
 import json
 import os
 import sys
+import time
 import urllib.error
 import urllib.request
 import uuid
 
 PLACEHOLDER_BASE_URL = "https://YOUR-USERNAME.github.io/turing-tables"
+
+# Set TURING_TABLES_LOG=<file> to append a JSON line per HTTP request and
+# script action -- the first thing to check when the agent seems stuck.
+LOG_PATH = os.environ.get("TURING_TABLES_LOG")
+
+
+def log(event, **fields):
+    if not LOG_PATH:
+        return
+    rec = {"t": datetime.datetime.now().isoformat(timespec="seconds"),
+           "event": event, **fields}
+    try:
+        with open(LOG_PATH, "a", encoding="utf-8") as f:
+            f.write(json.dumps(rec) + "\n")
+    except OSError:
+        pass
 
 
 class StoreNotFound(Exception):
@@ -54,11 +72,19 @@ def _request(method, url, payload=None):
         data = json.dumps(payload).encode()
         headers["Content-Type"] = "application/json"
     req = urllib.request.Request(url, data=data, headers=headers, method=method)
+    started = time.monotonic()
     try:
         with urllib.request.urlopen(req, timeout=20) as res:
-            return res.read().decode()
+            body = res.read().decode()
+            log("http", method=method, url=url, status=res.status,
+                ms=int((time.monotonic() - started) * 1000))
+            return body
     except urllib.error.HTTPError as err:
+        log("http_error", method=method, url=url, status=err.code)
         raise StoreHttpError(f"HTTP {err.code} from storage") from err
+    except OSError as err:
+        log("http_error", method=method, url=url, error=str(err))
+        raise
 
 
 def create_state(state, db=None):
@@ -93,6 +119,7 @@ def is_placeholder_url(url):
 
 
 def die(msg, code=1):
+    log("fatal", msg=msg, code=code)
     print(msg, file=sys.stderr)
     sys.exit(code)
 
