@@ -252,7 +252,7 @@ function renderLanding() {
         <p>This repo ships a ready-made skill for the Hermes Agent. Install it and ask Hermes for a game:</p>
         <pre><code>cp -r skill/turing-tables ~/.hermes/skills/games/
 # then tell Hermes: "let's play tic-tac-toe"</code></pre>
-        <p>Details in the <a href="https://github.com/" data-repo-link>README</a>.</p>
+        <p>Details in the <a href="https://github.com/ade1963/turing-tables" data-repo-link>README</a>.</p>
       </section>
     </div>`;
 }
