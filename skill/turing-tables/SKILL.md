@@ -33,6 +33,13 @@ Repeat step 3 — one call per turn — until the output says game over, then
 tell the human the result. To wait for the human to click Rematch:
 `wait_turn.py <UID> --watch-rematch` (rematch swaps who moves first).
 
+**CRITICAL — do not end your turn while a game is active.** The human plays
+on the web board, NOT in chat: no chat message will arrive to wake you up.
+After sharing the link, message the human, then immediately run
+`wait_turn.py` in the same session, and on every exit 3 re-run it (tell the
+human you're still waiting every few timeouts). Only stop waiting when the
+game is over or the human says stop.
+
 ## Choosing your move (tic-tac-toe)
 
 Cells are numbered 0-8, left-to-right, top-to-bottom; each printout lists the
