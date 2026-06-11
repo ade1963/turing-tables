@@ -72,6 +72,9 @@ def get_state(uid, db=None):
     data = json.loads(body)
     if data is None:
         raise StoreNotFound("Game not found -- wrong UID, or the game was cleaned up.")
+    game = GAMES.get(data.get("game"))
+    if game:
+        data = game["normalize"](data)
     return data
 
 
@@ -101,6 +104,18 @@ TTT_LINES = [
     (0, 3, 6), (1, 4, 7), (2, 5, 8),
     (0, 4, 8), (2, 4, 6),
 ]
+
+
+def ttt_normalize(state):
+    # Storage backends (Firebase RTDB) strip empty arrays and null values
+    # from stored JSON -- restore the full schema after every read.
+    state.setdefault("moves", [])
+    state.setdefault("chat", [])
+    state.setdefault("winner", None)
+    state.setdefault("turn", None)
+    board = state.get("board") or []
+    state["board"] = [board[i] if i < len(board) and board[i] else "" for i in range(9)]
+    return state
 
 
 def ttt_init(first="human"):
@@ -179,6 +194,7 @@ def ttt_board_text(state):
 GAMES = {
     "tictactoe": {
         "init": ttt_init,
+        "normalize": ttt_normalize,
         "validate": ttt_validate,
         "apply": ttt_apply,
         "parse_move": ttt_parse_move,

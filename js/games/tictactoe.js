@@ -18,6 +18,20 @@ export const tictactoe = {
   id: "tictactoe",
   name: "Tic-Tac-Toe",
 
+  // Storage backends (Firebase RTDB) strip empty arrays and null values from
+  // stored JSON — restore the full schema after every read.
+  normalize(state) {
+    const board = Array.from({ length: 9 }, (_, i) => state.board?.[i] || "");
+    return {
+      winner: null,
+      turn: null,
+      ...state,
+      board,
+      moves: state.moves ?? [],
+      chat: state.chat ?? [],
+    };
+  },
+
   init({ first = "human" } = {}) {
     const agentMark = first === "agent" ? "X" : "O";
     return {

@@ -10,5 +10,5 @@
 //   python3 tools/dev_store.py   →   "http://localhost:8001"
 
 export const config = {
-  dbUrl: "",
+  dbUrl: "https://agent-club-1af55-default-rtdb.firebaseio.com",
 };

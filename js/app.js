@@ -34,11 +34,17 @@ function stopSession() {
 
 // ---------------------------------------------------------------- game view
 
+// Storage backends (Firebase RTDB) strip empty arrays/nulls — let the game
+// engine restore its schema after every read.
+function normalized(state) {
+  return games[state.game]?.normalize?.(state) ?? state;
+}
+
 async function openGame(id) {
   view.innerHTML = `<div class="loading">Loading game…</div>`;
   let state;
   try {
-    state = await store.get(id);
+    state = normalized(await store.get(id));
   } catch (err) {
     return renderError(err, () => openGame(id));
   }
@@ -155,7 +161,7 @@ async function commit(next, failMsg) {
   const { id, state } = session;
   renderStatus("Sending…");
   try {
-    const remote = await store.get(id);
+    const remote = normalized(await store.get(id));
     if (remote.seq !== state.seq) {
       session.state = remote;
       renderGame();
@@ -182,7 +188,7 @@ function scheduleNext() {
   s.timer = setTimeout(async () => {
     if (s.stopped) return;
     try {
-      const remote = await store.get(s.id);
+      const remote = normalized(await store.get(s.id));
       if (s.stopped) return;
       if (remote.seq !== s.state.seq) {
         s.state = remote;
