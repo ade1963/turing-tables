@@ -19,8 +19,6 @@ import sys
 
 import _lib
 
-MAX_CHAT = 8
-
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
@@ -62,8 +60,7 @@ def main():
 
     nxt = game["apply"](state, move, "agent")
     if args.say:
-        nxt["chat"] = (nxt.get("chat") or [])[-(MAX_CHAT - 1):]
-        nxt["chat"].append({"by": "agent", "msg": args.say})
+        _lib.chat_push(nxt, "agent", args.say)
 
     try:
         _lib.put_state(args.uid, nxt, db=args.db_url)

@@ -13,8 +13,6 @@ import argparse
 
 import _lib
 
-MAX_CHAT = 8
-
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
@@ -31,8 +29,7 @@ def main():
     except (_lib.StoreHttpError, OSError) as err:
         _lib.die(f"Storage unreachable: {err}", 5)
 
-    state["chat"] = (state.get("chat") or [])[-(MAX_CHAT - 1):]
-    state["chat"].append({"by": "agent", "msg": args.message})
+    _lib.chat_push(state, "agent", args.message)
     state["seq"] = state["seq"] + 1
 
     try:

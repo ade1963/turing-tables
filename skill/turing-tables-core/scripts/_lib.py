@@ -151,6 +151,15 @@ def die(msg, code=1):
     sys.exit(code)
 
 
+MAX_CHAT_MSGS = 8
+MAX_CHAT_LEN = 200  # firebase.rules.json caps chat msg at 200 chars
+
+
+def chat_push(state, by, msg):
+    state["chat"] = (state.get("chat") or [])[-(MAX_CHAT_MSGS - 1):]
+    state["chat"].append({"by": by, "msg": str(msg)[:MAX_CHAT_LEN]})
+
+
 def wait_for_turn(uid, timeout=120, watch_rematch=False, db=None):
     """Poll until it's the agent's turn (0) or the game is over (2) or
     timeout (3). Returns (state, code); state is None on timeout before

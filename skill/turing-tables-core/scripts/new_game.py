@@ -25,7 +25,7 @@ def main():
 
     state = _lib.GAMES[args.game]["init"](first=args.first)
     if args.say:
-        state["chat"].append({"by": "agent", "msg": args.say})
+        _lib.chat_push(state, "agent", args.say)
 
     try:
         uid = _lib.create_state(state, db=args.db_url)
