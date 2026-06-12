@@ -5,8 +5,10 @@
 
 import { tictactoe } from "./tictactoe.js";
 import { connect4 } from "./connect4.js";
+import { gomoku } from "./gomoku.js";
 
 export const games = {
   [tictactoe.id]: tictactoe,
   [connect4.id]: connect4,
+  [gomoku.id]: gomoku,
 };

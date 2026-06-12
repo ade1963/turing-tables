@@ -1,6 +1,7 @@
 // App shell: hash router + game loop.
-// Routes:  #/        landing page
-//          #/g/<id>  game view, <id> = jsonblob UID created by the agent
+// Routes:  #/             landing page
+//          #/g/<id>       live game view, <id> = game UID created by the agent
+//          #/demo/<game>  local demo board (hotseat, no storage)
 
 import { store, StoreError } from "./store.js";
 import { games } from "./games/registry.js";
@@ -9,19 +10,25 @@ const POLL_MS = 2500;
 const POLL_HIDDEN_MS = 8000;
 
 const view = document.getElementById("view");
-let session = null; // { id, state, engine, timer, stopped }
+let session = null; // { id, state, engine, timer, stopped, local, replay }
+
+// Game state is world-writable by design (public-by-link) — escape anything
+// state-derived before putting it into HTML.
+const esc = (s) =>
+  String(s).replace(/[&<>"']/g, (c) =>
+    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])
+  );
 
 window.addEventListener("hashchange", route);
 route();
 
 function route() {
   stopSession();
-  const m = location.hash.match(/^#\/g\/([A-Za-z0-9-]+)/);
-  if (m) {
-    openGame(m[1]);
-  } else {
-    renderLanding();
-  }
+  let m = location.hash.match(/^#\/g\/([A-Za-z0-9-]+)/);
+  if (m) return openGame(m[1]);
+  m = location.hash.match(/^#\/demo\/([a-z0-9]+)/);
+  if (m && games[m[1]]) return openDemo(m[1]);
+  renderLanding();
 }
 
 function stopSession() {
@@ -55,46 +62,65 @@ async function openGame(id) {
       null
     );
   }
-  session = { id, state, engine, timer: null, stopped: false };
+  session = { id, state, engine, timer: null, stopped: false, local: false, replay: null };
   renderGame();
   scheduleNext();
 }
 
+function openDemo(gameId) {
+  const engine = games[gameId];
+  const state = engine.init({ first: "human" });
+  state.players.agent.name = "Player two";
+  session = { id: null, state, engine, timer: null, stopped: false, local: true, replay: null };
+  renderGame();
+}
+
 function renderGame() {
-  const { state, engine } = session;
+  const { state, engine, local, replay } = session;
+  // Keep a half-typed chat message across poll-driven re-renders.
+  const prevInput = view.querySelector("[data-chatsend] input");
+  const draft = prevInput ? prevInput.value : "";
+  const hadFocus = !!prevInput && document.activeElement === prevInput;
+
+  const agentName = esc(state.players.agent.name ?? "Agent");
   view.innerHTML = `
     <div class="game">
       <div class="game-head">
         <h1>${engine.name}</h1>
-        <span class="round">round ${state.round ?? 1}</span>
+        <span class="round">round ${esc(state.round ?? 1)}</span>
       </div>
+      ${local ? `<p class="demo-note">Demo — you play both sides.
+        <a href="#/">Hook up an agent</a> for a real opponent.</p>` : ""}
       <p class="status" data-status></p>
       <div class="board" data-board></div>
       <div class="chat" data-chat></div>
-      <div class="chat-send" data-chatsend>
-        <input type="text" maxlength="120"
-          placeholder="Message ${state.players.agent.name ?? "the agent"}…">
+      ${local ? "" : `<div class="chat-send" data-chatsend>
+        <input type="text" maxlength="120" placeholder="Message ${agentName}…">
         <button type="button" class="btn small">Send</button>
-      </div>
+      </div>`}
       <div class="actions" data-actions></div>
-      <p class="hint">You are <strong>${state.players.human.mark}</strong> ·
-        ${state.players.agent.name ?? "Agent"} is <strong>${state.players.agent.mark}</strong>
-        · score you <strong>${state.score?.human ?? 0} : ${state.score?.agent ?? 0}</strong>
-        ${state.players.agent.name ?? "Agent"} (draws ${state.score?.draws ?? 0})</p>
+      ${local ? "" : `<p class="hint">You are <strong>${esc(state.players.human.mark)}</strong> ·
+        ${agentName} is <strong>${esc(state.players.agent.mark)}</strong>
+        · score you <strong>${esc(state.score?.human ?? 0)} : ${esc(state.score?.agent ?? 0)}</strong>
+        ${agentName} (draws ${esc(state.score?.draws ?? 0)})</p>`}
     </div>`;
 
-  const humanTurn = state.status === "active" && state.turn === "human";
-  engine.render(view.querySelector("[data-board]"), state, {
-    canMove: humanTurn,
-    onMove: humanMove,
-  });
-  renderStatus();
+  if (replay) {
+    renderReplayBoard();
+  } else {
+    const canMove = state.status === "active" && (local || state.turn === "human");
+    engine.render(view.querySelector("[data-board]"), state, {
+      canMove,
+      onMove: humanMove,
+    });
+    renderStatus();
+  }
   renderChat();
-  wireChatInput(humanTurn);
+  wireChatInput(!local && state.status === "active" && state.turn === "human", draft, hadFocus);
   renderActions();
 }
 
-function wireChatInput(canChat) {
+function wireChatInput(canChat, draft = "", hadFocus = false) {
   const wrap = view.querySelector("[data-chatsend]");
   if (!wrap) return;
   const input = wrap.querySelector("input");
@@ -102,6 +128,8 @@ function wireChatInput(canChat) {
   input.disabled = btn.disabled = !canChat;
   wrap.classList.toggle("muted", !canChat);
   if (!canChat) return;
+  input.value = draft;
+  if (hadFocus) input.focus();
   const send = async () => {
     const msg = input.value.trim();
     if (!msg) return;
@@ -121,14 +149,22 @@ function wireChatInput(canChat) {
 function renderStatus(extra) {
   const el = view.querySelector("[data-status]");
   if (!el || !session) return;
-  const { state } = session;
+  const { state, local } = session;
   const agentName = state.players.agent.name ?? "Agent";
   let text, cls = "";
   if (state.status === "win") {
-    text = state.winner === "human" ? "You win! 🎉" : `${agentName} wins 🤖`;
-    cls = state.winner === "human" ? "good" : "bad";
+    if (local) {
+      text = `${state.players[state.winner].mark} wins!`;
+      cls = "good";
+    } else {
+      text = state.winner === "human" ? "You win! 🎉" : `${agentName} wins 🤖`;
+      cls = state.winner === "human" ? "good" : "bad";
+    }
   } else if (state.status === "draw") {
     text = "It's a draw.";
+  } else if (local) {
+    text = `${state.players[state.turn].mark} to move`;
+    cls = "good";
   } else if (state.turn === "human") {
     text = `Your turn — place an ${state.players.human.mark}`;
     cls = "good";
@@ -156,26 +192,81 @@ function renderChat() {
   );
 }
 
+function btnEl(label, onClick, ghost = false) {
+  const b = document.createElement("button");
+  b.type = "button";
+  b.className = ghost ? "btn ghost" : "btn";
+  b.textContent = label;
+  b.addEventListener("click", onClick);
+  return b;
+}
+
 function renderActions() {
   const el = view.querySelector("[data-actions]");
   if (!el || !session) return;
-  const { state } = session;
+  const { state, replay } = session;
   el.replaceChildren();
-  if (state.status !== "active") {
-    const btn = document.createElement("button");
-    btn.className = "btn";
-    btn.textContent = "Rematch ↺";
-    btn.addEventListener("click", rematch);
-    el.appendChild(btn);
+  if (state.status === "active") return;
+  if (replay) {
+    const back = btnEl("◀", () => stepReplay(-1), true);
+    const fwd = btnEl("▶", () => stepReplay(1), true);
+    back.disabled = replay.idx === 0;
+    fwd.disabled = replay.idx === state.moves.length;
+    const exit = btnEl("✕ Exit replay", () => {
+      session.replay = null;
+      renderGame();
+    });
+    el.append(back, fwd, exit);
+    return;
+  }
+  el.appendChild(btnEl("Rematch ↺", rematch));
+  if (state.moves?.length) {
+    el.appendChild(
+      btnEl("▶ Replay", () => {
+        session.replay = { idx: 0 };
+        renderGame();
+      }, true)
+    );
   }
 }
 
+// -------------------------------------------------------------------- replay
+
+function stepReplay(d) {
+  const r = session?.replay;
+  if (!r) return;
+  r.idx = Math.max(0, Math.min(session.state.moves.length, r.idx + d));
+  renderGame();
+}
+
+function renderReplayBoard() {
+  const { state, engine, replay } = session;
+  const shown = state.moves.slice(0, replay.idx);
+  const board = Array(state.board.length).fill("");
+  for (const mv of shown) engine.placeAt(board, mv, state.players[mv.by].mark);
+  const finished = replay.idx === state.moves.length;
+  const snap = {
+    ...state,
+    board,
+    moves: shown,
+    status: finished ? state.status : "active",
+    winner: finished ? state.winner : null,
+  };
+  engine.render(view.querySelector("[data-board]"), snap, { canMove: false });
+  const el = view.querySelector("[data-status]");
+  el.textContent = `Replay — move ${replay.idx} of ${state.moves.length}`;
+  el.className = "status";
+}
+
+// --------------------------------------------------------------------- moves
+
 async function humanMove(move) {
-  const { state, engine, id } = session;
-  const reason = engine.validate(state, move, "human");
+  const { state, engine, local } = session;
+  const by = local ? state.turn : "human";
+  const reason = engine.validate(state, move, by);
   if (reason) return renderStatus(`Illegal move: ${reason}`);
 
-  const next = engine.apply(state, move, "human");
+  const next = engine.apply(state, move, by);
   await commit(next, "Couldn't send your move — check your connection and try again.");
 }
 
@@ -191,6 +282,11 @@ async function rematch() {
 
 // Re-fetch before writing: if someone else advanced the game, show that instead.
 async function commit(next, failMsg) {
+  if (session.local) {
+    session.state = next;
+    renderGame();
+    return;
+  }
   const { id, state } = session;
   renderStatus("Sending…");
   try {
@@ -211,12 +307,13 @@ async function commit(next, failMsg) {
   }
 }
 
-// Poll only while we wait on the agent.
+// Poll while the game is live: the agent's moves arrive on its turn, and its
+// chat messages (say.py) can arrive even while we hold the turn.
 function scheduleNext() {
   const s = session;
-  if (!s || s.stopped) return;
+  if (!s || s.stopped || s.local) return;
   clearTimeout(s.timer);
-  if (s.state.status !== "active" || s.state.turn !== "agent") return;
+  if (s.state.status !== "active") return;
   const delay = document.hidden ? POLL_HIDDEN_MS : POLL_MS;
   s.timer = setTimeout(async () => {
     if (s.stopped) return;
@@ -242,7 +339,7 @@ function renderError(err, retry) {
   view.innerHTML = `
     <div class="card error-card">
       <h1>😕 ${err.kind === "not_found" ? "Game not found" : "Something went wrong"}</h1>
-      <p>${err.message}</p>
+      <p>${esc(err.message)}</p>
       <div class="actions"></div>
     </div>`;
   const actions = view.querySelector(".actions");
@@ -269,6 +366,15 @@ function renderLanding() {
           <a href="https://github.com/NousResearch/hermes-agent" target="_blank" rel="noopener">Hermes</a>)
           creates a game, sends you a link, and you play right here — no accounts, no server.</p>
       </section>
+      <section class="card demo-strip">
+        <h2>Try the board right now</h2>
+        <p>No agent yet? Play both sides of a local demo game:</p>
+        <div class="actions">
+          <a class="btn ghost" href="#/demo/tictactoe">Tic-tac-toe</a>
+          <a class="btn ghost" href="#/demo/connect4">Connect 4</a>
+          <a class="btn ghost" href="#/demo/gomoku">Gomoku</a>
+        </div>
+      </section>
       <section class="steps">
         <div class="card"><span class="step-n">1</span>
           <h2>Agent creates a game</h2>
@@ -282,9 +388,10 @@ function renderLanding() {
       </section>
       <section class="card setup">
         <h2>Hook up your own agent</h2>
-        <p>This repo ships a ready-made skill for the Hermes Agent. Install it and ask Hermes for a game:</p>
+        <p>This repo ships ready-made skills for the Hermes Agent — tic-tac-toe, Connect&nbsp;4,
+          and Gomoku. Install them and ask Hermes for a game:</p>
         <pre><code>cp -r skill/turing-tables-* ~/.hermes/skills/games/
-# then tell Hermes: "let's play tic-tac-toe"</code></pre>
+# then tell Hermes: "let's play gomoku"</code></pre>
         <p>Details in the <a href="https://github.com/ade1963/turing-tables" data-repo-link>README</a>.</p>
       </section>
     </div>`;

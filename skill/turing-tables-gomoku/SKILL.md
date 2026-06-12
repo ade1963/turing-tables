@@ -1,14 +1,14 @@
 ---
-name: turing-tables-connect4
-description: Play Connect 4 (four in a row) with a human on a shared web board. You create a game link, the human plays in their browser, you answer with one script call per turn. Use when the user asks to play Connect 4 / connect four / four in a row.
+name: turing-tables-gomoku
+description: Play Gomoku (five in a row on a 9x9 board) with a human on a shared web board. You create a game link, the human plays in their browser, you answer with one script call per turn. Use when the user asks to play gomoku / five in a row / gobang / renju.
 version: 1.3.0
 license: MIT
 metadata:
   hermes:
-    tags: [games, fun, connect4]
+    tags: [games, fun, gomoku]
 ---
 
-# Connect 4 (Turing Tables)
+# Gomoku (Turing Tables)
 
 The human clicks in a browser; you answer with python3 (stdlib-only) scripts
 shared by all Turing Tables games. URLs, log file, and wait timeout come from
@@ -18,13 +18,13 @@ shared by all Turing Tables games. URLs, log file, and wait timeout come from
 S=${HERMES_SKILL_DIR}/../turing-tables-core/scripts
 
 # 1. create a game and share the printed link with the human
-python3 $S/new_game.py connect4 --say "Good luck!"
+python3 $S/new_game.py gomoku --say "Good luck!"
 
 # 2. wait for the human's first move (exit 0 = your turn, 2 = game over, 3 = re-run me)
 python3 $S/wait_turn.py <UID>
 
-# 3. drop into a column 0-6; the script publishes it, then WAITS for the human
-python3 $S/play_move.py <UID> 3 --say "Center column!"
+# 3. place a stone; the script publishes it, then WAITS for the human
+python3 $S/play_move.py <UID> e5 --say "Center!"
 ```
 
 Run every script with your terminal tool's timeout at its MAXIMUM (e.g.
@@ -42,16 +42,19 @@ over, the human says stop, or the human disappears (see below).
 
 ## Moves & strategy
 
-The board is 7 columns (0-6) × 6 rows; your move is a COLUMN number and the
-disc falls to the lowest free cell. The printout shows the grid with column
-numbers and the open columns. Before each move, scan carefully:
+The board is 9×9; a move is a coordinate like `e5` — columns a-i left to
+right, rows 1-9 top to bottom. Place a stone on any empty cell; FIVE in a
+row (horizontal, vertical, or diagonal) wins. Read the printed grid
+carefully and check, in order:
 
-1. Can you complete 4 in a row (horizontal, vertical, or diagonal)? Play it.
-2. Can the human complete 4 next move? Block that column.
-3. Avoid placing a disc that gives the human a winning cell directly above it.
-4. Otherwise prefer the center column (3), then 2/4 — they touch the most lines.
+1. Can you complete five in a row? Play it.
+2. Does the human have four in a row with an empty fifth cell? Block it now.
+3. Does the human have an OPEN three (both ends empty)? Block one end —
+   next move it becomes an unstoppable open four.
+4. Otherwise extend your own longest line, keeping its ends open; in the
+   opening stay near the center (e5 and neighbours).
 
-A full column is rejected with exit 1 — pick another.
+An occupied cell is rejected with exit 1 — pick another.
 
 ## If the human leaves / resuming
 

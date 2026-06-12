@@ -66,6 +66,10 @@ export const connect4 = {
     return { status: "active", winner: null };
   },
 
+  placeAt(board, entry, mark) {
+    board[entry.row * COLS + entry.col] = mark;
+  },
+
   render(el, state, { canMove = false, onMove } = {}) {
     const winLine = state.status === "win" ? connect4.result(state).line : [];
     const last = state.moves.at(-1);

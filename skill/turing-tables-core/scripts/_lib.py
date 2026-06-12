@@ -396,6 +396,90 @@ def c4_board_text(state):
     return out
 
 
+# ------------------------------------------------------ gomoku (mirrors JS)
+#
+# Board: flat 81-array, 9x9, index = row*9 + col, row 0 = top. A move is any
+# empty cell; five (or more) in a row wins. Script I/O uses chess-style
+# coordinates: columns a-i left to right, rows 1-9 top to bottom.
+
+G5_SIZE = 9
+
+
+def g5_coord(cell):
+    return f"{chr(ord('a') + cell % G5_SIZE)}{cell // G5_SIZE + 1}"
+
+
+def g5_normalize(state):
+    return _normalize_common(state, G5_SIZE * G5_SIZE)
+
+
+def g5_init(first="human"):
+    state = ttt_init(first)
+    state["game"] = "gomoku"
+    state["board"] = [""] * (G5_SIZE * G5_SIZE)
+    return state
+
+
+def g5_validate(state, cell, by):
+    if state.get("status") != "active":
+        return "game is over"
+    if state.get("turn") != by:
+        return "not your turn"
+    if not isinstance(cell, int) or not 0 <= cell < G5_SIZE * G5_SIZE:
+        return "move must be a coordinate a1-i9"
+    if state["board"][cell] != "":
+        return f"{g5_coord(cell)} is already taken"
+    return None
+
+
+def g5_result(state):
+    board = state["board"]
+    for row in range(G5_SIZE):
+        for col in range(G5_SIZE):
+            mark = board[row * G5_SIZE + col]
+            if mark == "":
+                continue
+            for dr, dc in ((0, 1), (1, 0), (1, 1), (1, -1)):
+                line = [(row + i * dr, col + i * dc) for i in range(5)]
+                if all(0 <= r < G5_SIZE and 0 <= c < G5_SIZE
+                       and board[r * G5_SIZE + c] == mark for r, c in line):
+                    winner = ("agent" if state["players"]["agent"]["mark"] == mark
+                              else "human")
+                    return {"status": "win", "winner": winner,
+                            "line": [r * G5_SIZE + c for r, c in line]}
+    if all(v != "" for v in board):
+        return {"status": "draw", "winner": None}
+    return {"status": "active", "winner": None}
+
+
+def g5_apply(state, cell, by):
+    nxt = copy.deepcopy(state)
+    nxt["board"][cell] = nxt["players"][by]["mark"]
+    nxt["moves"].append({"by": by, "cell": cell})
+    return _finish_move(state, nxt, by)
+
+
+def g5_parse_move(raw):
+    s = str(raw).strip().lower()
+    if len(s) == 2 and "a" <= s[0] <= "i" and "1" <= s[1] <= "9":
+        return (int(s[1]) - 1) * G5_SIZE + (ord(s[0]) - ord("a"))
+    raise ValueError(f"move must be a coordinate like e5 "
+                     f"(columns a-i, rows 1-9), got {raw!r}")
+
+
+def g5_board_text(state):
+    board = state["board"]
+    out = ["  " + " ".join(chr(ord("a") + c) for c in range(G5_SIZE))]
+    for row in range(G5_SIZE):
+        cells = [board[row * G5_SIZE + c] or "." for c in range(G5_SIZE)]
+        out.append(f"{row + 1} " + " ".join(cells))
+    text = "\n".join(out)
+    last = (state.get("moves") or [])[-1:]
+    if last and "cell" in last[0]:
+        text += f"\n\nlast move: {g5_coord(last[0]['cell'])} ({last[0].get('by', '?')})"
+    return text
+
+
 GAMES = {
     "tictactoe": {
         "init": ttt_init,
@@ -416,6 +500,17 @@ GAMES = {
         "parse_move": c4_parse_move,
         "board_text": c4_board_text,
         "move_help": "MOVE is a column 0-6; the disc falls to the lowest free cell",
+    },
+    "gomoku": {
+        "init": g5_init,
+        "normalize": g5_normalize,
+        "validate": g5_validate,
+        "apply": g5_apply,
+        "result": g5_result,
+        "parse_move": g5_parse_move,
+        "board_text": g5_board_text,
+        "move_help": ("MOVE is a coordinate like e5: "
+                      "columns a-i left to right, rows 1-9 top to bottom"),
     },
 }
 

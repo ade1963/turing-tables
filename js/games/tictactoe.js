@@ -57,6 +57,10 @@ export const tictactoe = {
     return { status: "active", winner: null };
   },
 
+  placeAt(board, entry, mark) {
+    board[entry.cell] = mark;
+  },
+
   render(el, state, { canMove = false, onMove } = {}) {
     const winLine = state.status === "win" ? tictactoe.result(state).line : [];
     const lastMove = state.moves.length ? state.moves[state.moves.length - 1].cell : -1;

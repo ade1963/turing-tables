@@ -2,5 +2,5 @@
   "app_url": "https://ade1963.github.io/turing-tables",
   "db_url": "https://agent-club-1af55-default-rtdb.firebaseio.com",
   "log": "/tmp/turing-tables.log",
-  "wait_timeout": 480
+  "wait_timeout": 570
 }

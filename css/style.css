@@ -15,6 +15,7 @@
 }
 
 * { box-sizing: border-box; }
+[hidden] { display: none !important; }
 
 html, body {
   margin: 0;
@@ -219,6 +220,36 @@ pre code { background: none; border: none; padding: 0; }
   to { transform: translateY(0); opacity: 1; }
 }
 
+/* gomoku */
+.g5-grid {
+  display: grid;
+  grid-template-columns: repeat(9, minmax(26px, 44px));
+  gap: 4px;
+  padding: 10px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  margin: 0.5rem 0;
+}
+.g5-cell {
+  aspect-ratio: 1;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  cursor: pointer;
+  padding: 0;
+  transition: background 0.15s;
+}
+.g5-cell:disabled { cursor: default; }
+.g5-cell:enabled:hover { background: #242a3a; }
+.g5-cell.mark-x { background: var(--x); border-color: var(--x); }
+.g5-cell.mark-o { background: var(--o); border-color: var(--o); }
+.g5-cell.filled { animation: pop 0.18s ease-out; }
+.g5-cell.last { box-shadow: 0 0 0 2px var(--text) inset; }
+.g5-cell.win {
+  box-shadow: 0 0 0 3px var(--good), 0 0 10px rgba(74, 222, 128, 0.35);
+}
+
 .chat {
   display: flex;
   flex-direction: column;
@@ -256,8 +287,10 @@ pre code { background: none; border: none; padding: 0; }
 .bubble.agent { align-self: flex-start; }
 .bubble.human { align-self: flex-end; background: #20283e; }
 
-.actions { display: flex; gap: 0.7rem; margin-top: 0.4rem; }
+.actions { display: flex; gap: 0.7rem; margin-top: 0.4rem; align-items: center; flex-wrap: wrap; }
 .hint { color: var(--muted); font-size: 0.85rem; }
+.demo-note { margin: 0; color: var(--muted); font-size: 0.9rem; }
+.demo-strip .actions { margin-top: 0.6rem; }
 
 /* ---------------------------------------------------------------- landing */
 
@@ -296,3 +329,24 @@ pre code { background: none; border: none; padding: 0; }
 .error-card h1 { font-size: 1.4rem; }
 .error-card p { color: var(--muted); }
 .error-card .actions { justify-content: center; }
+
+/* ----------------------------------------------------------------- mobile */
+
+@media (max-width: 480px) {
+  .view { padding: 0.6rem 0.7rem 2rem; }
+  .ttt-grid { grid-template-columns: repeat(3, minmax(64px, 1fr)); width: 100%; max-width: 340px; }
+  .c4-grid {
+    grid-template-columns: repeat(7, minmax(34px, 1fr));
+    gap: 5px;
+    padding: 8px;
+    width: 100%;
+    max-width: 400px;
+  }
+  .g5-grid {
+    grid-template-columns: repeat(9, minmax(26px, 1fr));
+    gap: 3px;
+    padding: 8px;
+    width: 100%;
+    max-width: 400px;
+  }
+}

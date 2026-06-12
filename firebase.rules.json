@@ -1,0 +1,57 @@
+{
+  "rules": {
+    "games": {
+      "$game": {
+        ".read": true,
+        ".write": "newData.exists()",
+        ".validate": "$game.matches(/^[A-Za-z0-9-]{1,40}$/) && newData.hasChildren(['game','seq','status','players'])",
+        "v":      { ".validate": "newData.isNumber()" },
+        "game":   { ".validate": "newData.isString() && newData.val().length <= 20" },
+        "seq":    { ".validate": "newData.isNumber()" },
+        "round":  { ".validate": "newData.isNumber()" },
+        "first":  { ".validate": "newData.isString() && newData.val().length <= 10" },
+        "turn":   { ".validate": "newData.isString() && newData.val().length <= 10" },
+        "status": { ".validate": "newData.isString() && newData.val().length <= 10" },
+        "winner": { ".validate": "newData.isString() && newData.val().length <= 10" },
+        "players": {
+          "$side": {
+            ".validate": "$side === 'agent' || $side === 'human'",
+            "mark":   { ".validate": "newData.isString() && newData.val().length <= 2" },
+            "name":   { ".validate": "newData.isString() && newData.val().length <= 40" },
+            "$other": { ".validate": false }
+          }
+        },
+        "score": {
+          "agent":  { ".validate": "newData.isNumber()" },
+          "human":  { ".validate": "newData.isNumber()" },
+          "draws":  { ".validate": "newData.isNumber()" },
+          "$other": { ".validate": false }
+        },
+        "board": {
+          "$cell": {
+            ".validate": "$cell.matches(/^([0-9]|[1-7][0-9]|80)$/) && newData.isString() && newData.val().length <= 1"
+          }
+        },
+        "moves": {
+          "$i": {
+            ".validate": "$i.matches(/^([0-9]|[1-7][0-9]|80)$/)",
+            "by":     { ".validate": "newData.isString() && newData.val().length <= 10" },
+            "cell":   { ".validate": "newData.isNumber()" },
+            "col":    { ".validate": "newData.isNumber()" },
+            "row":    { ".validate": "newData.isNumber()" },
+            "$other": { ".validate": false }
+          }
+        },
+        "chat": {
+          "$i": {
+            ".validate": "$i.matches(/^[0-7]$/)",
+            "by":     { ".validate": "newData.isString() && newData.val().length <= 10" },
+            "msg":    { ".validate": "newData.isString() && newData.val().length <= 200" },
+            "$other": { ".validate": false }
+          }
+        },
+        "$other": { ".validate": false }
+      }
+    }
+  }
+}

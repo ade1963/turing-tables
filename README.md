@@ -8,6 +8,9 @@ in your browser. The agent sees your moves and answers within seconds.
 No server code to run, no accounts for players, no API keys in the page.
 Deployable on GitHub Pages for free.
 
+**Games:** tic-tac-toe · Connect 4 · Gomoku (five in a row, 9×9) — plus a
+hotseat demo mode and move-by-move replay of finished games, right on the page.
+
 ## How it works
 
 ```
@@ -41,16 +44,12 @@ endpoint implementing those two verbs works as a backend
    **Add project** (Analytics not needed).
 2. **Build → Realtime Database → Create database** (any region, start in
    locked mode).
-3. In the **Rules** tab, allow public access *only* under `/games`:
-   ```json
-   {
-     "rules": {
-       "games": {
-         "$game": { ".read": true, ".write": true }
-       }
-     }
-   }
-   ```
+3. In the **Rules** tab, paste the contents of
+   [firebase.rules.json](firebase.rules.json). It exposes *only* individual
+   `/games/<uid>` documents (nobody can list all games or touch other paths)
+   and validates the game schema — field whitelist, board ≤ 81 one-char
+   cells, chat ≤ 8 messages of ≤ 200 chars — so strangers can't park
+   megabytes in your database.
 4. Copy the database URL, e.g.
    `https://my-turing-tables-default-rtdb.europe-west1.firebasedatabase.app`.
 
@@ -74,6 +73,7 @@ There is one thin skill per game plus a shared core (scripts + config):
 skill/turing-tables-core/        # shared scripts + config.json (not a skill itself)
 skill/turing-tables-tictactoe/   # SKILL.md for tic-tac-toe
 skill/turing-tables-connect4/    # SKILL.md for Connect 4
+skill/turing-tables-gomoku/      # SKILL.md for Gomoku (five in a row)
 ```
 
 1. Put your URLs into
@@ -86,13 +86,25 @@ skill/turing-tables-connect4/    # SKILL.md for Connect 4
    ```bash
    cp -r skill/turing-tables-* ~/.hermes/skills/games/
    ```
-3. Ask Hermes: *"let's play tic-tac-toe"* (or *connect 4*). It creates a
-   game, sends you the link, and waits. One script call per turn:
-   `play_move.py` publishes Hermes' move and blocks until you answer.
+3. Ask Hermes: *"let's play tic-tac-toe"* (or *connect 4*, or *gomoku*). It
+   creates a game, sends you the link, and waits. One script call per turn:
+   `play_move.py` publishes Hermes' move and blocks until you answer
+   (`say.py` chats on the board without moving).
 
 **Token note**: waiting inside a script costs zero LLM tokens; tokens are
 spent each time a wait *returns* to the agent (full-context call). Set
-`wait_timeout` as high as your agent's tool runner allows (default 480s).
+`wait_timeout` as high as your agent's tool runner allows (default 570s).
+
+**If the agent looks stuck or waits die early**: most tool runners kill
+commands after a fixed time (Hermes' terminal defaults to 180s, hard cap
+600s via `terminal.timeout` in `~/.hermes/config.yaml`). Either raise that
+limit or lower `wait_timeout` below it — a killed wait is harmless but
+noisier than a clean "exit 3, re-run me".
+
+**Telegram tip (Hermes)**: the gateway posts a progress bubble per tool
+call while playing. `display.cleanup_progress: true` in
+`~/.hermes/config.yaml` auto-deletes them once the reply lands;
+`display.tool_progress: off` hides them entirely.
 
 The scripts are plain python3 (stdlib only), so any agent with a shell tool
 can use them — the per-game SKILL.md files (e.g.
@@ -103,12 +115,15 @@ the instructions.
 
 - Open the link the agent gives you — the board renders immediately.
 - When it's your turn the cells light up; click one (Connect 4: click any
-  cell in a column to drop there).
+  cell in a column to drop there; Gomoku: click any empty intersection).
 - "Hermes is thinking…" means the agent has been notified and is choosing.
 - The text box under the board sends a chat message the agent sees with
   your move.
 - After the game ends, hit **Rematch ↺** — first move alternates and the
-  score carries over across rounds.
+  score carries over across rounds — or **▶ Replay** to step through the
+  game move by move.
+- No agent yet? The landing page has a **hotseat demo** of every game
+  (`#/demo/gomoku` etc.) — fully local, nothing is written anywhere.
 
 ## Local development (no Firebase needed)
 
@@ -123,7 +138,7 @@ python3 skill/turing-tables-core/scripts/new_game.py \
 ## Adding a new game
 
 1. Create `js/games/<id>.js` implementing the engine interface
-   (`normalize / init / validate / apply / result / render` — see
+   (`normalize / init / validate / apply / result / placeAt / render` — see
    [js/games/connect4.js](js/games/connect4.js); reuse
    [js/games/common.js](js/games/common.js)) and register it in
    [js/games/registry.js](js/games/registry.js).
@@ -139,8 +154,9 @@ moves independently — for board games this is a few dozen lines.
 ## Honest limitations
 
 - **Games are public-by-link**: anyone with the UID can read or write that
-  game's state (the rules above expose only `/games`). Fine for games;
-  never put secrets or personal data in it.
+  game's state (the rules expose only individual `/games/<uid>` paths and
+  validate the schema and sizes). Fine for games; never put secrets or
+  personal data in it.
 - **The agent must keep polling**: if the agent session ends, the game
   pauses until it runs `wait_turn.py` again (state is never lost).
 - **Firebase free tier limits** (1 GB storage, 10 GB/month transfer) are
