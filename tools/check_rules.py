@@ -43,6 +43,15 @@ def get(db, path):
         return err.code
 
 
+def delete(db, path):
+    req = urllib.request.Request(f"{db}/{path}.json", method="DELETE")
+    try:
+        with urllib.request.urlopen(req, timeout=15) as res:
+            return res.status
+    except urllib.error.HTTPError as err:
+        return err.code
+
+
 def watch_snapshot():
     return {
         "game": "gomoku", "status": "active", "turn": "agent", "seq": 2,
@@ -90,8 +99,14 @@ def main():
         failures += 0 if good else 1
         print(f"{'PASS' if good else 'FAIL'}  {label} (HTTP {status})")
 
-    put(db, g, valid)        # leave the probe docs tiny + valid
-    put(db, w, w_valid)
+    # Deletes must be allowed (so games are cleanable); this also removes the
+    # probe docs so the lobby is left clean.
+    dg, dw = delete(db, g), delete(db, w)
+    cleaned = dg == 200 and dw == 200
+    failures += 0 if cleaned else 1
+    print(f"{'PASS' if cleaned else 'FAIL'}  probe docs deletable / cleaned up "
+          f"(HTTP {dg}/{dw})")
+
     if failures:
         print(f"\n{failures} check(s) failed -- rules are probably "
               "not applied yet (Firebase console -> Realtime Database -> Rules).")

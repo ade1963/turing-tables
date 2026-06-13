@@ -3,7 +3,7 @@
     "games": {
       "$game": {
         ".read": true,
-        ".write": "newData.exists()",
+        ".write": true,
         ".validate": "$game.matches(/^[A-Za-z0-9-]{1,40}$/) && newData.hasChildren(['game','seq','status','players'])",
         "v":      { ".validate": "newData.isNumber()" },
         "game":   { ".validate": "newData.isString() && newData.val().length <= 20" },
@@ -60,7 +60,7 @@
       ".read": true,
       ".indexOn": ["updatedAt"],
       "$w": {
-        ".write": "newData.exists()",
+        ".write": true,
         ".validate": "$w.matches(/^[A-Za-z0-9-]{1,40}$/) && newData.hasChildren(['game','status','updatedAt'])",
         "game":     { ".validate": "newData.isString() && newData.val().length <= 20" },
         "status":   { ".validate": "newData.isString() && newData.val().length <= 10" },
