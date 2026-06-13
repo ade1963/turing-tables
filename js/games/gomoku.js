@@ -11,6 +11,7 @@ const DIRS = [[0, 1], [1, 0], [1, 1], [1, -1]];
 export const gomoku = {
   id: "gomoku",
   name: "Gomoku",
+  cols: SIZE,
 
   normalize(state) {
     return normalizeCommon(state, SIZE * SIZE);

@@ -19,6 +19,7 @@ const LINES = [
 export const tictactoe = {
   id: "tictactoe",
   name: "Tic-Tac-Toe",
+  cols: 3,
 
   normalize(state) {
     return normalizeCommon(state, 9);

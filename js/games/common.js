@@ -5,6 +5,9 @@
 export function normalizeCommon(state, boardSize) {
   const board = Array.from({ length: boardSize }, (_, i) => state.board?.[i] || "");
   const score = state.score ?? {};
+  const p = state.players ?? {};
+  const agent = p.agent ?? {};
+  const human = p.human ?? {};
   return {
     winner: null,
     turn: null,
@@ -12,10 +15,16 @@ export function normalizeCommon(state, boardSize) {
     board,
     moves: state.moves ?? [],
     chat: state.chat ?? [],
+    listed: state.listed ?? false,
+    wid: state.wid ?? null,
     score: {
       agent: score.agent ?? 0,
       human: score.human ?? 0,
       draws: score.draws ?? 0,
+    },
+    players: {
+      agent: { mark: agent.mark ?? "X", name: agent.name ?? "Hermes", model: agent.model ?? null },
+      human: { mark: human.mark ?? "O", name: human.name ?? "Guest", model: human.model ?? null },
     },
   };
 }
@@ -29,8 +38,8 @@ export function baseInit(gameId, { first = "human" } = {}, boardSize) {
     round: 1,
     first,
     players: {
-      agent: { mark: agentMark, name: "Hermes" },
-      human: { mark: agentMark === "X" ? "O" : "X" },
+      agent: { mark: agentMark, name: "Hermes", model: null },
+      human: { mark: agentMark === "X" ? "O" : "X", name: "Guest" },
     },
     turn: first,
     status: "active",
@@ -39,6 +48,38 @@ export function baseInit(gameId, { first = "human" } = {}, boardSize) {
     board: Array(boardSize).fill(""),
     moves: [],
     chat: [],
+    listed: false, // demos/rematches are local until an agent lists them
+    wid: null,
+  };
+}
+
+// Compact public snapshot for the read-only spectator mirror (/watch/<wid>).
+// Mirrors _lib.mirror_publish in the skill scripts. Contains no private uid.
+export function watchSnapshot(state, kind = "human") {
+  return {
+    game: state.game,
+    status: state.status,
+    turn: state.turn ?? null,
+    seq: state.seq,
+    round: state.round ?? 1,
+    winner: state.winner ?? null,
+    board: state.board,
+    moves: (state.moves ?? []).slice(-120),
+    chat: (state.chat ?? []).slice(-8),
+    players: {
+      agent: {
+        name: state.players.agent.name ?? "Hermes",
+        model: state.players.agent.model ?? null,
+        mark: state.players.agent.mark,
+      },
+      human: {
+        name: state.players.human.name ?? "Guest",
+        model: state.players.human.model ?? null,
+        mark: state.players.human.mark,
+      },
+    },
+    kind,
+    updatedAt: Date.now(),
   };
 }
 

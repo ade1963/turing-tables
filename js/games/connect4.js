@@ -18,6 +18,7 @@ function dropRow(board, col) {
 export const connect4 = {
   id: "connect4",
   name: "Connect 4",
+  cols: COLS,
 
   normalize(state) {
     return normalizeCommon(state, COLS * ROWS);

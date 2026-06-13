@@ -113,10 +113,54 @@ def _request(method, url, payload=None):
         raise
 
 
+def new_id():
+    return uuid.uuid4().hex[:12]
+
+
 def create_state(state, db=None):
-    uid = uuid.uuid4().hex[:12]
+    uid = new_id()
     put_state(uid, state, db)
     return uid
+
+
+def _watch_url(wid, db=None):
+    return f"{db_url(db)}/watch/{wid}.json"
+
+
+def mirror_publish(state, kind="human", db=None):
+    """Publish a public read-only snapshot to /watch/<wid> for spectators.
+
+    No-op unless the game is listed and has a wid. The snapshot carries no
+    private uid, so exposing wid never grants write access to the real game.
+    Best-effort: a mirror failure never fails the real move.
+    """
+    wid = state.get("wid")
+    if not wid or not state.get("listed"):
+        return
+    pa, ph = state["players"]["agent"], state["players"]["human"]
+    snap = {
+        "game": state["game"],
+        "status": state["status"],
+        "turn": state.get("turn"),
+        "seq": state["seq"],
+        "round": state.get("round", 1),
+        "winner": state.get("winner"),
+        "board": state["board"],
+        "moves": (state.get("moves") or [])[-120:],
+        "chat": (state.get("chat") or [])[-8:],
+        "players": {
+            "agent": {"name": pa.get("name", "Hermes"), "model": pa.get("model"),
+                      "mark": pa["mark"]},
+            "human": {"name": ph.get("name", "Guest"), "model": ph.get("model"),
+                      "mark": ph["mark"]},
+        },
+        "kind": kind,
+        "updatedAt": int(time.time() * 1000),
+    }
+    try:
+        _request("PUT", _watch_url(wid, db), snap)
+    except (StoreHttpError, OSError):
+        pass
 
 
 def get_state(uid, db=None):
@@ -135,10 +179,17 @@ def put_state(uid, state, db=None):
     return state
 
 
+def _app_base(cli_base=None):
+    return (cli_base or os.environ.get("TURING_TABLES_URL")
+            or _config().get("app_url") or PLACEHOLDER_BASE_URL).rstrip("/")
+
+
 def share_url(uid, cli_base=None):
-    base = (cli_base or os.environ.get("TURING_TABLES_URL")
-            or _config().get("app_url") or PLACEHOLDER_BASE_URL)
-    return f"{base.rstrip('/')}/#/g/{uid}"
+    return f"{_app_base(cli_base)}/#/g/{uid}"
+
+
+def share_watch_url(wid, cli_base=None):
+    return f"{_app_base(cli_base)}/#/watch/{wid}"
 
 
 def is_placeholder_url(url):
@@ -221,8 +272,21 @@ def _normalize_common(state, board_size):
     state.setdefault("chat", [])
     state.setdefault("winner", None)
     state.setdefault("turn", None)
+    state.setdefault("listed", False)
+    state.setdefault("wid", None)
     score = state.get("score") or {}
     state["score"] = {k: score.get(k, 0) for k in ("agent", "human", "draws")}
+    players = state.get("players") or {}
+    agent = players.get("agent") or {}
+    human = players.get("human") or {}
+    state["players"] = {
+        "agent": {"mark": agent.get("mark", "X"),
+                  "name": agent.get("name", "Hermes"),
+                  "model": agent.get("model")},
+        "human": {"mark": human.get("mark", "O"),
+                  "name": human.get("name", "Guest"),
+                  "model": human.get("model")},
+    }
     board = state.get("board") or []
     state["board"] = [board[i] if i < len(board) and board[i] else ""
                       for i in range(board_size)]
@@ -257,8 +321,8 @@ def ttt_init(first="human"):
         "round": 1,
         "first": first,
         "players": {
-            "agent": {"mark": agent_mark, "name": "Hermes"},
-            "human": {"mark": "O" if agent_mark == "X" else "X"},
+            "agent": {"mark": agent_mark, "name": "Hermes", "model": None},
+            "human": {"mark": "O" if agent_mark == "X" else "X", "name": "Guest"},
         },
         "turn": first,
         "status": "active",
@@ -267,6 +331,8 @@ def ttt_init(first="human"):
         "board": [""] * 9,
         "moves": [],
         "chat": [],
+        "listed": True,  # agent-created games show in the public lobby; --unlisted opts out
+        "wid": None,
     }
 
 
@@ -522,6 +588,47 @@ GAMES = {
                       "columns a-i left to right, rows 1-9 top to bottom"),
     },
 }
+
+
+# ----------------------------------------------- heuristic self-play policy
+#
+# A cheap, deterministic 1-ply policy reused by selfplay.py (agent vs agent).
+# Pass an rng + explore probability for varied games; omit for determinism.
+
+def _legal_moves(state):
+    board = state["board"]
+    if state["game"] == "connect4":
+        return [c for c in range(C4_COLS) if c4_drop_row(board, c) is not None]
+    return [i for i, v in enumerate(board) if v == ""]  # tictactoe, gomoku
+
+
+def _move_rank(state, mv):
+    """Lower = more central (used to break ties toward the middle)."""
+    if state["game"] == "connect4":
+        return abs(mv - C4_COLS // 2)
+    size = 3 if state["game"] == "tictactoe" else G5_SIZE
+    return abs(mv // size - size // 2) + abs(mv % size - size // 2)
+
+
+def pick_move(state, by, rng=None, explore=0.0):
+    """Win if you can, else block the opponent's immediate win, else play
+    toward the center. `by` is the side to move ("agent"/"human")."""
+    legal = _legal_moves(state)
+    if not legal:
+        return None
+    apply_move = GAMES[state["game"]]["apply"]
+    if rng is not None and explore and rng.random() < explore:
+        return rng.choice(legal)
+    opp = "human" if by == "agent" else "agent"
+    for mv in legal:
+        if apply_move(state, mv, by)["winner"] == by:
+            return mv
+    for mv in legal:
+        if apply_move(state, mv, opp)["winner"] == opp:
+            return mv  # same cell/column the opponent would have won on
+    best = min(_move_rank(state, mv) for mv in legal)
+    cands = [mv for mv in legal if _move_rank(state, mv) == best]
+    return rng.choice(cands) if rng is not None else cands[0]
 
 
 # ------------------------------------------------------------------ output

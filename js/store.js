@@ -16,7 +16,7 @@ export class StoreError extends Error {
   }
 }
 
-function gameUrl(id) {
+function pathUrl(path, query = "") {
   const base = (config.dbUrl || "").replace(/\/+$/, "");
   if (!base) {
     throw new StoreError(
@@ -24,7 +24,11 @@ function gameUrl(id) {
       "No database configured. Set dbUrl in js/config.js (see README.md)."
     );
   }
-  return `${base}/games/${encodeURIComponent(id)}.json`;
+  return `${base}/${path}.json${query}`;
+}
+
+function gameUrl(id) {
+  return pathUrl(`games/${encodeURIComponent(id)}`);
 }
 
 async function request(url, options = {}) {
@@ -63,5 +67,31 @@ export const store = {
       body: JSON.stringify(state),
     });
     return state;
+  },
+
+  // Generic path access, used for the public /watch mirror (spectator lobby).
+  async getPath(path) {
+    const res = await request(pathUrl(path));
+    return res.json();
+  },
+
+  async putPath(path, data) {
+    await request(pathUrl(path), {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    });
+    return data;
+  },
+
+  // Last N spectator snapshots, newest first. Firebase bounds this server-side
+  // via orderBy/limitToLast (needs ".indexOn": ["updatedAt"] on /watch).
+  async listWatch(n = 30) {
+    const query = `?orderBy=${encodeURIComponent('"updatedAt"')}&limitToLast=${n}`;
+    const res = await request(pathUrl("watch", query));
+    const data = (await res.json()) || {};
+    return Object.entries(data)
+      .map(([wid, snap]) => ({ wid, ...snap }))
+      .sort((a, b) => (b.updatedAt ?? 0) - (a.updatedAt ?? 0));
   },
 };

@@ -36,6 +36,7 @@ def main():
         _lib.put_state(args.uid, state, db=args.db_url)
     except (_lib.StoreNotFound, _lib.StoreHttpError, OSError) as err:
         _lib.die(f"Could not send the message: {err}", 5)
+    _lib.mirror_publish(state, db=args.db_url)
 
     _lib.log("say", uid=args.uid, seq=state["seq"])
     print("Sent.")

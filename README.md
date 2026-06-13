@@ -9,7 +9,9 @@ No server code to run, no accounts for players, no API keys in the page.
 Deployable on GitHub Pages for free.
 
 **Games:** tic-tac-toe · Connect 4 · Gomoku (five in a row, 9×9) — plus a
-hotseat demo mode and move-by-move replay of finished games, right on the page.
+hotseat demo mode, move-by-move replay, a **public spectator lobby** (watch
+live games and recent finishes), **agent-vs-agent** matches, and one-click
+**share images** of finished boards.
 
 ## How it works
 
@@ -89,7 +91,9 @@ skill/turing-tables-gomoku/      # SKILL.md for Gomoku (five in a row)
 3. Ask Hermes: *"let's play tic-tac-toe"* (or *connect 4*, or *gomoku*). It
    creates a game, sends you the link, and waits. One script call per turn:
    `play_move.py` publishes Hermes' move and blocks until you answer
-   (`say.py` chats on the board without moving).
+   (`say.py` chats on the board without moving). The agent can pass
+   `--agent-name` / `--model` so spectators see who's playing, and
+   `--unlisted` to keep a game out of the public lobby.
 
 **Token note**: waiting inside a script costs zero LLM tokens; tokens are
 spent each time a wait *returns* to the agent (full-context call). Set
@@ -120,10 +124,34 @@ the instructions.
 - The text box under the board sends a chat message the agent sees with
   your move.
 - After the game ends, hit **Rematch ↺** — first move alternates and the
-  score carries over across rounds — or **▶ Replay** to step through the
-  game move by move.
+  score carries over across rounds — **▶ Replay** to step through the game,
+  or **📷 Share image** to save/copy a PNG of the final board.
 - No agent yet? The landing page has a **hotseat demo** of every game
   (`#/demo/gomoku` etc.) — fully local, nothing is written anywhere.
+
+## Watch & share
+
+- The landing page shows a **lobby** of live and recently finished games.
+  Open any one to **spectate** (`#/watch/<wid>`, read-only) — the board
+  updates as the players move, and replay/share appear when it ends.
+- Spectating is safe by design: the lobby exposes a throwaway public
+  *mirror* (`/watch/<wid>`), never the real game's private UID, so a
+  spectator can never write into a game in progress. Pass `--unlisted` to
+  `new_game.py` to keep a game private (link-only, not in the lobby).
+
+## Agent vs agent
+
+Run a match between two built-in heuristic players and broadcast it live:
+
+```bash
+python3 skill/turing-tables-core/scripts/selfplay.py gomoku \
+  --a-name Blue --b-name Gold --delay 1.5
+```
+
+It prints a watch link; the match plays out in the browser and is replayable
+afterwards. The move policy (`_lib.pick_move`) is a cheap heuristic — see
+[INTEGRATION.md](INTEGRATION.md) for swapping in real LLMs via the
+Model Behavior `match_runner` + personas.
 
 ## Local development (no Firebase needed)
 
@@ -138,8 +166,8 @@ python3 skill/turing-tables-core/scripts/new_game.py \
 ## Adding a new game
 
 1. Create `js/games/<id>.js` implementing the engine interface
-   (`normalize / init / validate / apply / result / placeAt / render` — see
-   [js/games/connect4.js](js/games/connect4.js); reuse
+   (`cols`, `normalize / init / validate / apply / result / placeAt / render`
+   — see [js/games/connect4.js](js/games/connect4.js); reuse
    [js/games/common.js](js/games/common.js)) and register it in
    [js/games/registry.js](js/games/registry.js).
 2. Mirror the rules in
@@ -156,7 +184,11 @@ moves independently — for board games this is a few dozen lines.
 - **Games are public-by-link**: anyone with the UID can read or write that
   game's state (the rules expose only individual `/games/<uid>` paths and
   validate the schema and sizes). Fine for games; never put secrets or
-  personal data in it.
+  personal data in it. **Listed games** also publish a read-only `/watch/<wid>`
+  mirror that anyone can browse from the lobby — identities (names + model)
+  are public; the writable game UID is not. Use `--unlisted` to opt out.
+  Old `/games` and `/watch` entries are never auto-deleted; wipe them in the
+  Firebase console occasionally if you care.
 - **The agent must keep polling**: if the agent session ends, the game
   pauses until it runs `wait_turn.py` again (state is never lost).
 - **Firebase free tier limits** (1 GB storage, 10 GB/month transfer) are

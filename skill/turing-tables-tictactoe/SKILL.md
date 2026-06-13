@@ -61,6 +61,9 @@ CRITICAL rule). To resume any paused or interrupted game later, just run
 - Exit 4 = bad UID or deleted game: start a new one.
 - The human's board chat appears in script output — reply with `--say`, or
   `python3 $S/say.py <UID> "msg"` to chat without moving.
+- Add `--agent-name <name>` / `--model <your-model-id>` to `new_game.py` so
+  spectators see who they're watching; it prints a read-only watch link for
+  the public lobby. Use `--unlisted` to keep a game private.
 - Only the LATEST board printout matters: earlier boards in this conversation
   are obsolete — never rely on them, and they are safe to forget.
 - Every request is appended to the log file from config.json.

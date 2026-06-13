@@ -66,6 +66,7 @@ def main():
         _lib.put_state(args.uid, nxt, db=args.db_url)
     except (_lib.StoreNotFound, _lib.StoreHttpError, OSError) as err:
         _lib.die(f"Could not publish the move: {err}", 5)
+    _lib.mirror_publish(nxt, db=args.db_url)
 
     _lib.log("move", uid=args.uid, move=args.move, seq=nxt["seq"],
              status=nxt["status"])

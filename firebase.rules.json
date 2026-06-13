@@ -13,11 +13,14 @@
         "turn":   { ".validate": "newData.isString() && newData.val().length <= 10" },
         "status": { ".validate": "newData.isString() && newData.val().length <= 10" },
         "winner": { ".validate": "newData.isString() && newData.val().length <= 10" },
+        "wid":    { ".validate": "newData.isString() && newData.val().length <= 40" },
+        "listed": { ".validate": "newData.isBoolean()" },
         "players": {
           "$side": {
             ".validate": "$side === 'agent' || $side === 'human'",
             "mark":   { ".validate": "newData.isString() && newData.val().length <= 2" },
             "name":   { ".validate": "newData.isString() && newData.val().length <= 40" },
+            "model":  { ".validate": "newData.isString() && newData.val().length <= 60" },
             "$other": { ".validate": false }
           }
         },
@@ -35,6 +38,55 @@
         "moves": {
           "$i": {
             ".validate": "$i.matches(/^([0-9]|[1-7][0-9]|80)$/)",
+            "by":     { ".validate": "newData.isString() && newData.val().length <= 10" },
+            "cell":   { ".validate": "newData.isNumber()" },
+            "col":    { ".validate": "newData.isNumber()" },
+            "row":    { ".validate": "newData.isNumber()" },
+            "$other": { ".validate": false }
+          }
+        },
+        "chat": {
+          "$i": {
+            ".validate": "$i.matches(/^[0-7]$/)",
+            "by":     { ".validate": "newData.isString() && newData.val().length <= 10" },
+            "msg":    { ".validate": "newData.isString() && newData.val().length <= 200" },
+            "$other": { ".validate": false }
+          }
+        },
+        "$other": { ".validate": false }
+      }
+    },
+    "watch": {
+      ".read": true,
+      ".indexOn": ["updatedAt"],
+      "$w": {
+        ".write": "newData.exists()",
+        ".validate": "$w.matches(/^[A-Za-z0-9-]{1,40}$/) && newData.hasChildren(['game','status','updatedAt'])",
+        "game":     { ".validate": "newData.isString() && newData.val().length <= 20" },
+        "status":   { ".validate": "newData.isString() && newData.val().length <= 10" },
+        "turn":     { ".validate": "newData.isString() && newData.val().length <= 10" },
+        "seq":      { ".validate": "newData.isNumber()" },
+        "round":    { ".validate": "newData.isNumber()" },
+        "winner":   { ".validate": "newData.isString() && newData.val().length <= 10" },
+        "kind":     { ".validate": "newData.isString() && newData.val().length <= 10" },
+        "updatedAt":{ ".validate": "newData.isNumber()" },
+        "players": {
+          "$side": {
+            ".validate": "$side === 'agent' || $side === 'human'",
+            "mark":   { ".validate": "newData.isString() && newData.val().length <= 2" },
+            "name":   { ".validate": "newData.isString() && newData.val().length <= 40" },
+            "model":  { ".validate": "newData.isString() && newData.val().length <= 60" },
+            "$other": { ".validate": false }
+          }
+        },
+        "board": {
+          "$cell": {
+            ".validate": "$cell.matches(/^([0-9]|[1-7][0-9]|80)$/) && newData.isString() && newData.val().length <= 1"
+          }
+        },
+        "moves": {
+          "$i": {
+            ".validate": "$i.matches(/^([0-9]|[1-9][0-9]|1[01][0-9])$/)",
             "by":     { ".validate": "newData.isString() && newData.val().length <= 10" },
             "cell":   { ".validate": "newData.isNumber()" },
             "col":    { ".validate": "newData.isNumber()" },
