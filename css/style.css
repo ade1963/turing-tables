@@ -65,7 +65,11 @@ pre code { background: none; border: none; padding: 0; }
   color: var(--text);
 }
 .brand:hover { text-decoration: none; }
-.gh-link { color: var(--muted); font-size: 0.9rem; }
+.nav { display: flex; gap: 1.1rem; align-items: center; }
+.nav a { color: var(--muted); font-size: 0.9rem; }
+.nav a:hover { color: var(--text); }
+.lobby-page { padding-top: 1rem; }
+.lobby-foot { text-align: center; margin-top: 1rem; }
 
 .view {
   flex: 1;

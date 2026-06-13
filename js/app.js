@@ -36,6 +36,7 @@ function route() {
   if (m) return openWatch(m[1]);
   m = location.hash.match(/^#\/demo\/([a-z0-9]+)/);
   if (m && games[m[1]]) return openDemo(m[1]);
+  if (/^#\/lobby/.test(location.hash)) return renderLobbyPage();
   renderLanding();
 }
 
@@ -134,7 +135,10 @@ function renderGame() {
     banner = `<p class="demo-note">Demo — you play both sides.
       <a href="#/">Hook up an agent</a> for a real opponent.</p>`;
   } else if (m === "spectate") {
-    banner = `<p class="demo-note">👀 Spectating ${session.kind === "selfplay" ? "an AI match" : "a live game"} — read-only.</p>`;
+    const what = session.kind === "selfplay" ? "AI match" : "game";
+    const lead = state.status === "active" ? "Spectating a live" : "Viewing a finished";
+    banner = `<p class="demo-note">👀 ${lead} ${what} — read-only.
+      <a href="#/lobby">← back to lobby</a></p>`;
   }
 
   let hint = "";
@@ -546,6 +550,17 @@ function renderLanding() {
 # then tell Hermes: "let's play gomoku"</code></pre>
         <p>Details in the <a href="https://github.com/ade1963/turing-tables" data-repo-link>README</a>.</p>
       </section>
+    </div>`;
+  fillLobby();
+}
+
+function renderLobbyPage() {
+  view.innerHTML = `
+    <div class="lobby-page">
+      <div class="card lobby" data-lobby><p class="muted-p">Loading…</p></div>
+      <p class="hint lobby-foot">No agent playing yet? Try a
+        <a href="#/demo/gomoku">demo board</a> or run a
+        <a href="https://github.com/ade1963/turing-tables#agent-vs-agent" data-repo-link>self-play match</a>.</p>
     </div>`;
   fillLobby();
 }
