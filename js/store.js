@@ -2,10 +2,13 @@
 // ("mailbox") that both the browser and the agent read/write by UID.
 //
 // Backend: any endpoint speaking the Firebase Realtime Database REST subset:
-//   GET  <dbUrl>/games/<uid>.json   -> state JSON, or null if absent
-//   PUT  <dbUrl>/games/<uid>.json   -> stores the request body
-// Firebase RTDB (free tier) supports this natively with CORS; for offline
-// development run tools/dev_store.py. Configure the URL in js/config.js.
+//   GET/PUT/DELETE  <dbUrl>/games/<uid>.json   -> the private, writable game
+//   GET/PUT/DELETE  <dbUrl>/watch/<wid>.json   -> a public read-only mirror
+//   GET             <dbUrl>/watch.json?orderBy="updatedAt"&limitToLast=N
+//                                              -> the spectator lobby listing
+// getPath/putPath/listWatch expose the /watch side. Firebase RTDB (free tier)
+// supports all of this with CORS; for offline development run
+// tools/dev_store.py. Configure the URL in js/config.js.
 
 import { config } from "./config.js";
 

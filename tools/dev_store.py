@@ -8,10 +8,13 @@ Lets you develop and test Turing Tables without internet or a Firebase project:
 then set dbUrl in js/config.js (and TURING_TABLES_DB_URL for the skill scripts)
 to http://localhost:8001. Implements, with CORS like Firebase:
 
-    GET  /<path>.json  -> stored JSON, or null
-    PUT  /<path>.json  -> stores the request body
+    GET    /<path>.json   -> stored JSON, or null
+    PUT    /<path>.json   -> stores the request body
+    DELETE /<path>.json   -> removes the key (missing key = no-op)
 
-State is in-memory only and lost on restart.
+Plus the bits the lobby needs: a subtree GET (e.g. GET /watch.json returns
+{wid: snapshot} assembled from the /watch/<wid>.json children) with Firebase's
+orderBy / limitToLast query params. State is in-memory only, lost on restart.
 """
 
 import json
@@ -26,7 +29,7 @@ class Handler(BaseHTTPRequestHandler):
     def _respond(self, code, body=None):
         self.send_response(code)
         self.send_header("Access-Control-Allow-Origin", "*")
-        self.send_header("Access-Control-Allow-Methods", "GET, PUT, OPTIONS")
+        self.send_header("Access-Control-Allow-Methods", "GET, PUT, DELETE, OPTIONS")
         self.send_header("Access-Control-Allow-Headers", "Content-Type")
         self.send_header("Cache-Control", "no-cache")
         if body is not None:
@@ -89,6 +92,13 @@ class Handler(BaseHTTPRequestHandler):
         except json.JSONDecodeError:
             return self._respond(400, b'{"error":"invalid JSON"}')
         self._respond(200, json.dumps(DATA[key]).encode())
+
+    def do_DELETE(self):
+        key = self._key()
+        if key is None:
+            return self._respond(404, b'{"error":"path must end with .json"}')
+        DATA.pop(key, None)  # Firebase: deleting a missing key is a no-op
+        self._respond(200, b"null")
 
     def log_message(self, fmt, *args):
         pass  # keep test output readable

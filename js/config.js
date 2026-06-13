@@ -2,7 +2,7 @@
 //
 //   1. https://console.firebase.google.com → Add project (no Analytics needed)
 //   2. Build → Realtime Database → Create database
-//   3. Rules tab → allow public access under /games (see README.md)
+//   3. Rules tab → paste firebase.rules.json (covers /games + /watch; see README.md)
 //   4. Copy the database URL here, e.g.
 //        "https://my-turing-tables-default-rtdb.europe-west1.firebasedatabase.app"
 //

@@ -1,5 +1,9 @@
 # 🎲 Turing Tables
 
+[![Turing Tables](assets/og.png)](https://ade1963.github.io/turing-tables/)
+
+**▶ [Live app](https://ade1963.github.io/turing-tables/) · 🔭 [Spectator lobby](https://ade1963.github.io/turing-tables/#/lobby) · 🎮 [Try a demo](https://ade1963.github.io/turing-tables/#/demo/gomoku)**
+
 Play board games against an AI agent — through a **fully static web page**.
 
 An agent (built for [Hermes Agent](https://github.com/NousResearch/hermes-agent),
@@ -13,23 +17,33 @@ hotseat demo mode, move-by-move replay, a **public spectator lobby** (watch
 live games and recent finishes), **agent-vs-agent** matches, and one-click
 **share images** of finished boards.
 
+## What it looks like
+
+| Spectator lobby (`#/lobby`) | A finished game |
+| --- | --- |
+| [![lobby](assets/screenshot-lobby.png)](https://ade1963.github.io/turing-tables/#/lobby) | ![finished game](assets/screenshot-game.png) |
+
 ## How it works
 
 ```
-human browser ──GET/PUT──▶  <db>/games/<UID>.json  ◀──GET/PUT── agent (python3 stdlib)
-      ▲                    (one tiny JSON doc per game,
-      │                     Firebase Realtime DB free tier)
-  static page on GitHub Pages              game link: <pages-url>/#/g/<UID>
+   you (browser) ──GET/PUT──▶  <db>/games/<UID>.json  ◀──GET/PUT── agent (python3 stdlib)
+                               private, link-only             │  each move also mirrored to
+                                                              ▼
+   spectators ───────GET─────▶  <db>/watch/<WID>.json   public, read-only — the lobby
+
+  game link:  <pages-url>/#/g/<UID>          watch link:  <pages-url>/#/watch/<WID>
 ```
 
-The whole game state is one JSON document; its key is the game UID the agent
-generates and puts into the link. Both sides poll it every few seconds while
-waiting; turn order is enforced by a `turn` field and an incrementing `seq`
-counter. Storage access lives behind a tiny adapter
+The whole game state is one JSON document; its key is the private game UID the
+agent generates and puts into the link. Both sides poll it every few seconds
+while waiting; turn order is enforced by a `turn` field and an incrementing
+`seq` counter. Listed games also publish a throwaway read-only **mirror** at
+`/watch/<WID>` so spectators can follow along without ever touching the real
+game. Storage access lives behind a tiny adapter
 ([js/store.js](js/store.js), [scripts/_lib.py](skill/turing-tables-core/scripts/_lib.py))
-that speaks the Firebase REST subset `GET/PUT <db>/games/<uid>.json` — any
-endpoint implementing those two verbs works as a backend
-(see [tools/dev_store.py](tools/dev_store.py) for a 90-line local stand-in).
+that speaks the Firebase REST subset (`GET`/`PUT`/`DELETE <db>/<path>.json`) —
+any endpoint implementing those verbs works as a backend
+(see [tools/dev_store.py](tools/dev_store.py) for a small local stand-in).
 
 > **Why Firebase and not a zero-signup JSON host?** All of them were tested
 > and none survive 2026: jsonblob.com stopped sending CORS headers on
@@ -47,13 +61,16 @@ endpoint implementing those two verbs works as a backend
 2. **Build → Realtime Database → Create database** (any region, start in
    locked mode).
 3. In the **Rules** tab, paste the contents of
-   [firebase.rules.json](firebase.rules.json). It exposes *only* individual
-   `/games/<uid>` documents (nobody can list all games or touch other paths)
-   and validates the game schema — field whitelist, board ≤ 81 one-char
-   cells, chat ≤ 8 messages of ≤ 200 chars — so strangers can't park
-   megabytes in your database.
+   [firebase.rules.json](firebase.rules.json) and **Publish**. It exposes only
+   individual `/games/<uid>` documents (the private games — not listable) and a
+   read-only, listable `/watch` node (the public spectator lobby), and validates
+   the schema — field whitelist, board ≤ 81 one-char cells, chat ≤ 8 messages of
+   ≤ 200 chars — so strangers can't park megabytes in your database. Deletes are
+   allowed so games can be pruned (see `tools/delete_game.py`).
 4. Copy the database URL, e.g.
    `https://my-turing-tables-default-rtdb.europe-west1.firebasedatabase.app`.
+5. *(optional)* Verify the rules took effect:
+   `python tools/check_rules.py` — every line should print **PASS**.
 
 ### 2. Deploy the web app on GitHub Pages
 
@@ -91,9 +108,10 @@ skill/turing-tables-gomoku/      # SKILL.md for Gomoku (five in a row)
 3. Ask Hermes: *"let's play tic-tac-toe"* (or *connect 4*, or *gomoku*). It
    creates a game, sends you the link, and waits. One script call per turn:
    `play_move.py` publishes Hermes' move and blocks until you answer
-   (`say.py` chats on the board without moving). The agent can pass
-   `--agent-name` / `--model` so spectators see who's playing, and
-   `--unlisted` to keep a game out of the public lobby.
+   (`say.py` chats on the board without moving). Games are **public by
+   default** — they appear in the spectator lobby; the agent can pass
+   `--agent-name` / `--model` so watchers see who's playing, and only adds
+   `--unlisted` if you ask for a private game.
 
 **Token note**: waiting inside a script costs zero LLM tokens; tokens are
 spent each time a wait *returns* to the agent (full-context call). Set
@@ -163,6 +181,18 @@ python3 skill/turing-tables-core/scripts/new_game.py \
   --db-url http://localhost:8001 --base-url http://localhost:8000
 ```
 
+The dev store ([tools/dev_store.py](tools/dev_store.py)) emulates enough
+Firebase REST (GET/PUT/DELETE, plus the `/watch` subtree listing) to run the
+whole app — lobby and spectating included — offline.
+
+**Other helpers in [`tools/`](tools):**
+
+- `check_rules.py` — probe the live database to confirm `firebase.rules.json`
+  is applied (valid writes pass, oversized/unknown ones are rejected).
+- `delete_game.py <uid>` — delete a game and its lobby mirror (`--watch-only
+  --wid <wid>` removes just a stray lobby entry).
+- `make_og.py` — regenerate the `assets/og.png` social card (needs Pillow).
+
 ## Adding a new game
 
 1. Create `js/games/<id>.js` implementing the engine interface
@@ -175,6 +205,9 @@ python3 skill/turing-tables-core/scripts/new_game.py \
    (`GAMES` dict entry).
 3. Add a thin `skill/turing-tables-<id>/SKILL.md` (copy an existing one,
    change the game name, move format, and strategy lines).
+4. For agent-vs-agent self-play, add the game to `_legal_moves` / `_move_rank`
+   in [_lib.py](skill/turing-tables-core/scripts/_lib.py) (these branch per
+   game — a *gravity* game like Connect 4 needs its own case).
 
 Rules are intentionally duplicated on both sides so each player validates
 moves independently — for board games this is a few dozen lines.
@@ -187,13 +220,13 @@ moves independently — for board games this is a few dozen lines.
   personal data in it. **Listed games** also publish a read-only `/watch/<wid>`
   mirror that anyone can browse from the lobby — identities (names + model)
   are public; the writable game UID is not. Use `--unlisted` to opt out.
-  Old `/games` and `/watch` entries are never auto-deleted; wipe them in the
-  Firebase console occasionally if you care.
 - **The agent must keep polling**: if the agent session ends, the game
   pauses until it runs `wait_turn.py` again (state is never lost).
-- **Firebase free tier limits** (1 GB storage, 10 GB/month transfer) are
-  far beyond what turn-based games use, but they exist. Old games are never
-  auto-deleted; wipe `/games` in the Firebase console occasionally if you care.
+- **No auto-cleanup**: old `/games` and `/watch` entries pile up forever.
+  Prune one with `python tools/delete_game.py <uid>` (removes its lobby mirror
+  too), or wipe `/games` and `/watch` in the Firebase console occasionally.
+  The free Spark tier (1 GB storage, 10 GB/month transfer) is far beyond what
+  turn-based games use, so this is housekeeping, not urgency.
 
 ## License
 
